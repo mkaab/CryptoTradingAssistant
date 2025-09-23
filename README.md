@@ -1,6 +1,6 @@
 # CryptoTradingAssistant
 
-##Crypto Swing Trading Screener
+## Crypto Swing Trading Screener
 A Streamlit-based tool for swing trading on KuCoin futures, focusing on top 10 cryptocurrencies by market cap. Fetches real-time price/volume from KuCoin, calculates technical indicators (RSI, EMA, MACD, ATR, Bollinger Bands), and generates a customizable AI prompt for trade setups (5x-15x leverage, $100 trade size, 1:2 risk/reward). Designed for 2025-09-23 market data, prioritizing high-probability setups (RSI <40/>70, BB squeeze <10%, MACD signals).
 
 ## Features
