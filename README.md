@@ -102,5 +102,5 @@ Traceback: Share errors (e.g., crypto_screener_ui.py:123) for quick fixes.
 
 Risk: Manual trading on KuCoin futures. Use demo mode first. DYOR!
 Account: Optimized for $1,000 account, 2% risk per trade ($20 max loss).
-Contact: Share feedback or errors via X (@your_handle) or email.
+
 
