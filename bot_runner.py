@@ -18,8 +18,6 @@ import yfinance as yf
 
 # Notification Settings
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # --- Notification Functions ---
 def send_discord_alert(message):
@@ -31,20 +29,9 @@ def send_discord_alert(message):
     except Exception as e:
         print(f"Failed to send Discord alert: {e}")
 
-def send_telegram_alert(message):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    try:
-        requests.post(url, json=data)
-    except Exception as e:
-        print(f"Failed to send Telegram alert: {e}")
-
 def send_alert(message):
     print(f"\n{message}\n") # Always print to console
     send_discord_alert(message)
-    send_telegram_alert(message)
 
 # --- State Management ---
 def load_state():
@@ -171,6 +158,21 @@ def check_ltf_setup(df_5m, bias, risk_modifier="NORMAL", sentiment=None):
     if df_5m.empty or bias not in ["Bullish", "Bearish"]:
         return None
         
+    ai_config = {}
+    if os.path.exists("ai_strategy_config.json"):
+        try:
+            with open("ai_strategy_config.json", "r") as f:
+                ai_config = json.load(f)
+        except:
+            pass
+            
+    whipsaw_pct = ai_config.get("whipsaw_buffer_pct", 0.2) / 100.0
+    allowed_dir = ai_config.get("allowed_direction", "BOTH")
+    base_rr = ai_config.get("base_rr_multiplier", 2)
+    
+    if allowed_dir == "SHORT_ONLY" and bias == "Bullish": return None
+    if allowed_dir == "LONG_ONLY" and bias == "Bearish": return None
+        
     ph, pl = get_pivots(df_5m, window=3) # 3-candle window for 5m pivots
     if not ph or not pl:
         return None
@@ -197,13 +199,13 @@ def check_ltf_setup(df_5m, bias, risk_modifier="NORMAL", sentiment=None):
                 entry = candle['close']
                 
                 # 4. Whipsaw Protection (Dynamic SL)
-                sl = sweep_price * 0.998 if risk_modifier == "REDUCED" else sweep_price
+                sl = sweep_price * (1.0 - whipsaw_pct) if risk_modifier == "REDUCED" else sweep_price
                 
                 risk = entry - sl
                 if risk <= 0: return None
                 
                 # 3. A+ Setup Detection (Dynamic TP)
-                rr_multiplier = 3 if ls_ratio < 0.5 else 2
+                rr_multiplier = base_rr + 1 if ls_ratio < 0.5 else base_rr
                 tp = entry + (risk * rr_multiplier)
                 
                 direction_str = "LONG ⭐ A+ SETUP ⭐" if rr_multiplier == 3 else "LONG"
@@ -223,13 +225,13 @@ def check_ltf_setup(df_5m, bias, risk_modifier="NORMAL", sentiment=None):
                 entry = candle['close']
                 
                 # 4. Whipsaw Protection (Dynamic SL)
-                sl = sweep_price * 1.002 if risk_modifier == "REDUCED" else sweep_price
+                sl = sweep_price * (1.0 + whipsaw_pct) if risk_modifier == "REDUCED" else sweep_price
                 
                 risk = sl - entry
                 if risk <= 0: return None
                 
                 # 3. A+ Setup Detection (Dynamic TP)
-                rr_multiplier = 3 if ls_ratio > 2.0 else 2
+                rr_multiplier = base_rr + 1 if ls_ratio > 2.0 else base_rr
                 tp = entry - (risk * rr_multiplier)
                 
                 direction_str = "SHORT ⭐ A+ SETUP ⭐" if rr_multiplier == 3 else "SHORT"
@@ -270,7 +272,6 @@ def run_bot(risk_modifier="NORMAL", sentiment=None):
                        f"Take Profit: ${setup['tp']:,.2f} ({rr_str})\n"
                        f"HTF Bias: {bias}{risk_warning}")
                 send_discord_alert(msg)
-                send_telegram_alert(msg)
                 
                 state[symbol] = setup_id
                 save_state(state)
@@ -297,6 +298,7 @@ def start_scheduler():
         print(f"  - {start}:00 to {end}:00")
         
     last_macro_date = {} # Track so we don't spam the context report
+    last_night_shift_date = ""
     current_risk_modifier = "NORMAL"
     current_sentiment = None
     
@@ -320,7 +322,15 @@ def start_scheduler():
                     
                     last_macro_date[start] = today_str
         
-        # 2. Check if we are inside any of the killzone windows
+        # 2. Night Shift AI Trigger (Runs at 20:00 PM Local Time)
+        if now.hour == 20 and now.minute == 0:
+            if last_night_shift_date != today_str:
+                print(f"[{now.strftime('%H:%M:%S')}] Spawning Deep Researcher Background Process...")
+                import subprocess
+                subprocess.Popen(["python", "deep_researcher.py"])
+                last_night_shift_date = today_str
+                
+        # 3. Check if we are inside any of the killzone windows
         in_killzone = any(start <= now.hour < end for start, end in KILLZONES)
         
         if in_killzone:
