@@ -11,13 +11,14 @@ load_dotenv()
 
 # --- Config & Setup ---
 BASE_URL = "https://api.kucoin.com"
-TARGET_SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "EURUSD=X", "GBPUSD=X", "GC=F"]
+TARGET_SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "EUR/USD", "GBP/USD", "XAU/USD"]
 STATE_FILE = "last_signal.json"
 
-import yfinance as yf
+import yfinance as yf # Keeping for backwards compatibility if needed, but not used
 
 # Notification Settings
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+TWELVEDATA_API_KEY = os.environ.get("TWELVEDATA_API_KEY", "")
 
 # --- Notification Functions ---
 def send_discord_alert(message):
@@ -76,42 +77,32 @@ def fetch_candles(symbol, timeframe):
             df = df.sort_values('time').reset_index(drop=True)
             return df
     else:
-        try:
-            ticker = yf.Ticker(symbol)
-            if timeframe == '4H':
-                df = ticker.history(interval='1h', period='1mo')
-            else:
-                df = ticker.history(interval='5m', period='5d')
-                
-            if df.empty:
-                return pd.DataFrame()
-                
-            df = df.reset_index()
-            df.columns = [c.lower() for c in df.columns]
+        # Use TwelveData for Forex/Gold
+        if not TWELVEDATA_API_KEY:
+            print(f"Skipping {symbol} - No TWELVEDATA_API_KEY found.")
+            return pd.DataFrame()
             
-            # Map datetime or date to time
-            time_col = 'datetime' if 'datetime' in df.columns else 'date'
-            df = df.rename(columns={time_col: 'time'})
+        td_interval = '4h' if timeframe == '4H' else '5min'
+        outputsize = 30 if timeframe == '4H' else 100
+        
+        url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={td_interval}&outputsize={outputsize}&apikey={TWELVEDATA_API_KEY}"
+        data = make_request(url)
+        
+        if data and 'values' in data:
+            df = pd.DataFrame(data['values'])
+            df['datetime'] = pd.to_datetime(df['datetime'])
+            df = df.rename(columns={'datetime': 'time'})
+            for col in ['open', 'close', 'high', 'low']:
+                df[col] = df[col].astype(float)
             
-            # Remove timezone awareness so it aligns perfectly with kucoin timestamps
-            df['time'] = pd.to_datetime(df['time']).dt.tz_localize(None)
+            # TwelveData returns newest first, so we reverse it
+            df = df.sort_values('time').reset_index(drop=True)
+            df['volume'] = 0.0 # TwelveData free forex doesn't give volume reliably, so mock it
             
-            if timeframe == '4H':
-                # Resample 1h into 4h blocks
-                df = df.set_index('time')
-                df = df.resample('4h').agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                }).dropna().reset_index()
-                
             return df[['time', 'open', 'close', 'high', 'low', 'volume']]
-        except Exception as e:
-            print(f"Failed to fetch {symbol} via yfinance: {e}")
-            
-    return pd.DataFrame()
+        else:
+            print(f"Failed to fetch {symbol} via TwelveData: {data.get('message', 'Unknown error') if data else 'No response'}")
+            return pd.DataFrame()
 
 # --- SMC Algorithms ---
 def get_pivots(df, window=3):

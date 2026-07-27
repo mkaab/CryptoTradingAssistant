@@ -69,10 +69,10 @@ def run_macro_agent():
     prompt = (
         "You are the Lead Macroeconomic Analyst for a Crypto/Forex Hedge Fund. "
         "Your task is to search the live web for the absolute latest macroeconomic news, CPI/PPI data, "
-        "or major crypto regulatory/liquidation news from the last few hours.\n\n"
+        "major crypto regulatory/liquidation news, and major Forex (EUR/USD, GBP/USD) or Gold (XAU) trends from the last few hours.\n\n"
         f"--- FIRM'S MASTER BRAIN ---\n{current_brain[-4000:]}\n\n"
         "Instructions:\n"
-        "1. Search the live web for breaking financial news.\n"
+        "1. Search the live web for breaking financial news affecting Crypto, Forex, and Gold.\n"
         "2. If there is a massive event that changes our trading bias, write a 1-paragraph brief appending a new 'rule' we should follow.\n"
         "3. If nothing is new, reply EXACTLY with 'NO_UPDATE'."
     )
