@@ -322,13 +322,17 @@ def start_scheduler():
                     
                     last_macro_date[start] = today_str
         
-        # 2. Night Shift AI Trigger (Runs at 20:00 PM Local Time)
-        if now.hour == 20 and now.minute == 0:
-            if last_night_shift_date != today_str:
+        # 2. Night Shift AI Trigger (Active between 20:00 and 08:00)
+        if now.hour >= 20 or now.hour < 8:
+            # Create a unique shift ID so it only spawns once per night (e.g., 8 PM to 8 AM is one shift)
+            from datetime import timedelta
+            shift_id = today_str if now.hour >= 20 else (now - timedelta(days=1)).strftime("%Y-%m-%d")
+            
+            if last_night_shift_date != shift_id:
                 print(f"[{now.strftime('%H:%M:%S')}] Spawning Deep Researcher Background Process...")
                 import subprocess
                 subprocess.Popen(["python", "deep_researcher.py"])
-                last_night_shift_date = today_str
+                last_night_shift_date = shift_id
                 
         # 3. Check if we are inside any of the killzone windows
         in_killzone = any(start <= now.hour < end for start, end in KILLZONES)
