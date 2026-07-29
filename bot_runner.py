@@ -7,7 +7,8 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+from dotenv import load_dotenv
+from execution_engine import execute_trade
 
 # --- Config & Setup ---
 BASE_URL = "https://api.kucoin.com"
@@ -264,6 +265,17 @@ def run_bot(risk_modifier="NORMAL", sentiment=None):
                        f"HTF Bias: {bias}{risk_warning}")
                 send_discord_alert(msg)
                 
+                # --- LIVE EXECUTION ---
+                print(f"[{symbol}] Attempting Live Execution via MetaApi...")
+                execute_trade(
+                    symbol=symbol,
+                    direction=setup['direction'],
+                    entry_price=setup['entry'],
+                    sl_price=setup['sl'],
+                    tp_price=setup['tp'],
+                    risk_usd=10.0 # Strict $10 risk per trade
+                )
+                
                 state[symbol] = setup_id
                 save_state(state)
             else:
@@ -302,9 +314,13 @@ def start_scheduler():
             pre_market_time = start - 1 if start > 0 else 23
             
             if now.hour == pre_market_time and now.minute >= 30:
-                if last_macro_date.get(start) != today_str:
-                    print(f"[{now.strftime('%H:%M:%S')}] Running Pre-Market Macro Research...")
-                    report, risk_modifier, sentiment = generate_daily_context()
+                    if last_macro_date.get(start) != today_str:
+                        print(f"[{now.strftime('%H:%M:%S')}] Updating Backtests...")
+                        import subprocess
+                        subprocess.run(["python", "backtest.py"])
+                        
+                        print(f"[{now.strftime('%H:%M:%S')}] Running Pre-Market Macro Research...")
+                        report, risk_modifier, sentiment = generate_daily_context()
                     current_risk_modifier = risk_modifier
                     current_sentiment = sentiment
                     

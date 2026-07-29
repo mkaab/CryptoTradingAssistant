@@ -67,13 +67,14 @@ def run_macro_agent():
     
     current_brain = get_master_brain()
     prompt = (
-        "You are the Lead Macroeconomic Analyst for a Crypto/Forex Hedge Fund. "
-        "Your task is to search the live web for the absolute latest macroeconomic news, CPI/PPI data, "
-        "major crypto regulatory/liquidation news, and major Forex (EUR/USD, GBP/USD) or Gold (XAU) trends from the last few hours.\n\n"
+        "You are the Lead Quantitative Researcher for a Hedge Fund. "
+        "Your primary task is to search Google Scholar and Arxiv for novel, mathematically proven trading edges, "
+        "unconventional quantitative strategies, and market inefficiencies (e.g., statistical arbitrage, volatility clustering, order flow imbalance) "
+        "that retail traders haven't spotted yet. You should also check for major Macroeconomic news (CPI, FOMC, Yield Curve).\n\n"
         f"--- FIRM'S MASTER BRAIN ---\n{current_brain[-4000:]}\n\n"
         "Instructions:\n"
-        "1. Search the live web for breaking financial news affecting Crypto, Forex, and Gold.\n"
-        "2. If there is a massive event that changes our trading bias, write a 1-paragraph brief appending a new 'rule' we should follow.\n"
+        "1. Search the web for recent academic research papers on financial markets, crypto, or forex.\n"
+        "2. If you find a novel strategy or a major macro event, write a 1-paragraph brief distilling the mathematical edge or rule we should adopt.\n"
         "3. If nothing is new, reply EXACTLY with 'NO_UPDATE'."
     )
     
