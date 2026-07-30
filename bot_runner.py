@@ -314,18 +314,22 @@ def start_scheduler():
             pre_market_time = start - 1 if start > 0 else 23
             
             if now.hour == pre_market_time and now.minute >= 30:
-                    if last_macro_date.get(start) != today_str:
-                        print(f"[{now.strftime('%H:%M:%S')}] Updating Backtests...")
-                        import subprocess
-                        subprocess.run(["python", "backtest.py"])
-                        
-                        print(f"[{now.strftime('%H:%M:%S')}] Running Pre-Market Macro Research...")
-                        report, risk_modifier, sentiment = generate_daily_context()
+                if last_macro_date.get(start) != today_str:
+                    print(f"[{now.strftime('%H:%M:%S')}] Updating Backtests...")
+                    import subprocess
+                    subprocess.run(["python", "backtest.py"])
+                    
+                    print(f"[{now.strftime('%H:%M:%S')}] Running Pre-Market Macro Research...")
+                    report, risk_modifier, sentiment = generate_daily_context()
                     current_risk_modifier = risk_modifier
                     current_sentiment = sentiment
                     
+                    print(f"[{now.strftime('%H:%M:%S')}] Running Catalyst Scanner...")
+                    from catalyst_scanner import generate_catalyst_report
+                    catalyst_report = generate_catalyst_report()
+                    
                     # Send to Discord
-                    send_discord_alert(report)
+                    send_discord_alert(catalyst_report)
                     
                     last_macro_date[start] = today_str
         
