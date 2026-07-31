@@ -78,17 +78,6 @@ Swing trading advice (2025-09-23 12:30): Suggest a BNB/USDT short setup with ent
 
 
 
-## API Integration
-To plug the prompt into an AI (e.g., xAI’s Grok):
-
-Copy the prompt from the UI.
-Use requests to send to xAI API:import requests
-prompt = "YOUR_COPIED_PROMPT"
-response = requests.post("https://api.x.ai/v1/grok", json={"prompt": prompt, "key": "YOUR_API_KEY"})
-print(response.json())
-
-
-See https://x.ai/api for API details.
 
 ## Debugging
 
