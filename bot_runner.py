@@ -25,9 +25,14 @@ TWELVEDATA_API_KEY = os.environ.get("TWELVEDATA_API_KEY", "")
 def send_discord_alert(message):
     if not DISCORD_WEBHOOK_URL:
         return
-    data = {"content": message}
     try:
-        requests.post(DISCORD_WEBHOOK_URL, json=data)
+        # Discord limits messages to 2000 characters. Split if necessary.
+        chunks = [message[i:i+1900] for i in range(0, len(message), 1900)]
+        for chunk in chunks:
+            data = {"content": chunk}
+            response = requests.post(DISCORD_WEBHOOK_URL, json=data)
+            if response.status_code >= 400:
+                print(f"Discord API Error: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"Failed to send Discord alert: {e}")
 
@@ -302,6 +307,7 @@ def start_scheduler():
         
     last_macro_date = {} # Track so we don't spam the context report
     last_night_shift_date = ""
+    last_tracker_run = ""
     current_risk_modifier = "NORMAL"
     current_sentiment = None
     
@@ -327,9 +333,14 @@ def start_scheduler():
                     print(f"[{now.strftime('%H:%M:%S')}] Running Catalyst Scanner...")
                     from catalyst_scanner import generate_catalyst_report
                     catalyst_report = generate_catalyst_report()
-                    
-                    # Send to Discord
                     send_discord_alert(catalyst_report)
+                    
+                    time.sleep(2) # Avoid hitting Discord rate limits
+                    
+                    print(f"[{now.strftime('%H:%M:%S')}] Running Congress Scanner...")
+                    from congress_scanner import generate_congress_report
+                    congress_report = generate_congress_report()
+                    send_discord_alert(congress_report)
                     
                     last_macro_date[start] = today_str
         
@@ -345,7 +356,16 @@ def start_scheduler():
                 subprocess.Popen(["python", "deep_researcher.py"])
                 last_night_shift_date = shift_id
                 
-        # 3. Check if we are inside any of the killzone windows
+        # 3. Whale Tracker Trigger (Every 15 minutes)
+        if now.minute % 15 == 0:
+            tracker_id = f"{today_str}-{now.hour}-{now.minute}"
+            if last_tracker_run != tracker_id:
+                print(f"[{now.strftime('%H:%M:%S')}] Spawning Whale Tracker...")
+                import subprocess
+                subprocess.Popen(["python", "wallet_tracker.py"])
+                last_tracker_run = tracker_id
+                
+        # 4. Check if we are inside any of the killzone windows
         in_killzone = any(start <= now.hour < end for start, end in KILLZONES)
         
         if in_killzone:
