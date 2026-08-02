@@ -25,12 +25,14 @@ def generate_congress_report():
     - The Ticker / Company
     - Buy or Sell?
     - The estimated amount or range (e.g., $100k - $250k)
+    - The exact Date Traded and the Date Disclosed
     - A 1-sentence analysis on why this is interesting (e.g. committee assignments, pending legislation, etc.)
     
     Use formatting like:
     🏛️ **Nancy Pelosi (D-CA)**
     **Action:** BOUGHT $NVDA
     **Amount:** $1M - $5M
+    **Dates:** Traded on 2026-07-20 (Disclosed: 2026-08-01)
     **Context:** Sits on committee relevant to semiconductors...
     
     If no new trades have been disclosed in the last 7 days, just say "No major congressional trades disclosed this week."
