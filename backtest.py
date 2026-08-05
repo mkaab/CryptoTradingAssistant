@@ -44,20 +44,14 @@ def get_htf_bias(df_4h_slice):
     return "Neutral"
 
 def backtest_smc(symbol="GC=F", days=30, interval="5m", htf_interval="4h"):
-    print(f"Downloading {days} days of data for {symbol} ({interval})...")
+    print(f"Loading {days} days of data for {symbol} ({interval})...")
     
-    # 1. Fetch Data
-    ticker = yf.Ticker(symbol)
-    df_5m = ticker.history(interval=interval, period=f'{days}d')
+    # 1. Fetch Data from Local DB
+    from data_manager import get_historical_data
+    df_5m = get_historical_data(symbol, interval, days)
     if df_5m.empty:
-        print("Failed to fetch 5m data.")
+        print(f"Failed to load {interval} data from DB.")
         return
-        
-    df_5m = df_5m.reset_index()
-    df_5m.columns = [c.lower() for c in df_5m.columns]
-    time_col = 'datetime' if 'datetime' in df_5m.columns else 'date'
-    df_5m = df_5m.rename(columns={time_col: 'time'})
-    df_5m['time'] = pd.to_datetime(df_5m['time']).dt.tz_localize(None)
     
     # 2. Resample for HTF Bias
     # Need to map pandas offset strings based on htf_interval
@@ -243,18 +237,9 @@ import ta
 
 def backtest_rapid_fire(symbol="GC=F", days=30, interval="5m"):
     print(f"\n--- RAPID FIRE STRATEGY ({symbol} | {interval}) ---")
-    ticker = yf.Ticker(symbol)
-    
-    # Limit max days for 1m interval due to Yahoo Finance restrictions
-    if interval == '1m' and days > 7:
-        days = 7
-        print(f"Yahoo Finance limits 1m data to 7 days. Adjusting period to 7d.")
-        
-    df = ticker.history(interval=interval, period=f'{days}d')
+    from data_manager import get_historical_data
+    df = get_historical_data(symbol, interval, days)
     if df.empty: return
-    
-    df = df.reset_index()
-    df.columns = [c.lower() for c in df.columns]
     
     # Calculate Indicators
     psar_indicator = ta.trend.PSARIndicator(high=df['high'], low=df['low'], close=df['close'], step=0.02, max_step=0.2)
@@ -342,18 +327,22 @@ def backtest_rapid_fire(symbol="GC=F", days=30, interval="5m"):
 if __name__ == "__main__":
     # Clear the results file first
     with open("backtest_results.md", "w") as f:
-        f.write("# MULTI-TIMEFRAME GRID SEARCH RESULTS\n\n")
+        f.write("# MULTI-TIMEFRAME GRID SEARCH RESULTS (7D & 30D)\n\n")
         
     print("Starting Grid Search...")
     
     # 1. SMC Grid Search
     # 5m -> 4h bias | 15m -> 4h bias | 1h -> 1d bias | 4h -> 1wk bias
-    smc_matrix = [("5m", "4h"), ("15m", "4h"), ("1h", "1d"), ("4h", "1wk")]
-    for interval, htf in smc_matrix:
-        backtest_smc(symbol="BTC-USD", days=30, interval=interval, htf_interval=htf)
-        
-    # 2. Rapid Fire Grid Search
-    # 1m, 5m, 15m
-    rf_intervals = ["1m", "5m", "15m"]
-    for interval in rf_intervals:
-        backtest_rapid_fire(symbol="BTC-USD", days=30, interval=interval)
+    smc_matrix = [("5m", "4h"), ("15m", "4h"), ("1h", "1d")] # Dropping 4h/1wk to save time
+    
+    for days_lookback in [7, 30]:
+        for interval, htf in smc_matrix:
+            backtest_smc(symbol="BTC-USD", days=days_lookback, interval=interval, htf_interval=htf)
+            
+        # 2. Rapid Fire Grid Search
+        rf_intervals = ["1m", "5m", "15m"]
+        for interval in rf_intervals:
+            # 1m data is capped at 7 days on Yahoo anyway, so no point querying 30 days
+            if interval == "1m" and days_lookback == 30:
+                continue
+            backtest_rapid_fire(symbol="BTC-USD", days=days_lookback, interval=interval)

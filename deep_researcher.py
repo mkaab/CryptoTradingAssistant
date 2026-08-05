@@ -210,6 +210,12 @@ def deep_research_loop():
     
     import subprocess
     print("Running initial overnight Backtests...")
+    
+    # 1. Sync the Local Database
+    from data_manager import update_all_data
+    update_all_data()
+    
+    # 2. Run the Multi-Timeframe Grid Search
     subprocess.run(["python", "backtest.py"])
     
     loop_count = 0
