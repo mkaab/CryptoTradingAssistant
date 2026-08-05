@@ -190,12 +190,27 @@ def compile_morning_strategy():
         with open(CONFIG_FILE, "w") as f:
             json.dump(config_data, f, indent=4)
         print("✅ Morning Strategy Config generated successfully.")
+        
+        # Send Discord Alert with the strategy
+        from bot_runner import send_discord_alert
+        msg = (
+            f"🌅 **Morning Shift Complete** 🌅\n"
+            f"The AI Portfolio Manager has analyzed the overnight Master Brain and set today's strategy:\n"
+            f"```json\n{json.dumps(config_data, indent=2)}\n```\n"
+            f"The bot is now fully armed for the London Killzone."
+        )
+        send_discord_alert(msg)
+        
     except Exception as e:
         print(f"❌ Failed to compile strategy: {e}")
 
 # --- Infinite Loop ---
 def deep_research_loop():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 🏢 Hedge Fund Night Shift Started.")
+    
+    import subprocess
+    print("Running initial overnight Backtests...")
+    subprocess.run(["python", "backtest.py"])
     
     loop_count = 0
     while True:

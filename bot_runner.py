@@ -321,10 +321,6 @@ def start_scheduler():
             
             if now.hour == pre_market_time and now.minute >= 30:
                 if last_macro_date.get(start) != today_str:
-                    print(f"[{now.strftime('%H:%M:%S')}] Updating Backtests...")
-                    import subprocess
-                    subprocess.run(["python", "backtest.py"])
-                    
                     print(f"[{now.strftime('%H:%M:%S')}] Running Pre-Market Macro Research...")
                     report, risk_modifier, sentiment = generate_daily_context()
                     current_risk_modifier = risk_modifier
