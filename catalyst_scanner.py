@@ -16,14 +16,14 @@ def generate_catalyst_report():
         return f"⚠️ Failed to initialize Gemini Client: {e}"
 
     prompt = """
-    You are an elite Crypto Hedge Fund Swing Trader. 
-    Search the web for major crypto and macro catalysts happening in the next 7 to 30 days.
+    You are an elite Hedge Fund Swing Trader. 
+    Search the web for major macro, forex, gold (XAUUSD), and crypto catalysts happening in the next 7 to 30 days.
     Look specifically for:
-    - Massive Token Unlocks
+    - Major Central Bank Rate Decisions or Fed policy shifts (for Forex/Gold)
+    - Geopolitical escalations or supply chain shocks (for Gold)
+    - Massive Crypto Token Unlocks
     - SEC Rulings / ETF Approvals or Denials
     - Major Mainnet Launches, Airdrops, or Protocol Upgrades
-    - Institutional Funding Rounds or major acquisitions
-    - Major Fed policy shifts affecting crypto
 
     Identify 1 to 3 highly actionable swing trade setups based on the news you find.
     For each setup, provide:
@@ -31,7 +31,8 @@ def generate_catalyst_report():
     2. The Asset Ticker
     3. Trade Direction (LONG or SHORT)
     4. Expected Timeframe
-    5. The Setup (Why this catalyst drives price, and where to enter/invalidate)
+    5. Price Zones (Estimated Entry range, Take Profit targets, and Stop Loss invalidation level)
+    6. The Setup (Why this catalyst drives price, and where to enter/invalidate)
 
     Format your output strictly as a highly engaging Discord message using emojis and bold text. 
     Use horizontal rules (---) to separate trades. Do not include standard pleasantries, just the alpha.

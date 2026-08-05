@@ -228,11 +228,10 @@ def deep_research_loop():
             
         # Active Shift: 20:00 (8 PM) to 07:54 AM
         if now.hour >= 20 or now.hour < 8:
-            # 1. Macro Analyst runs every 5 minutes (every loop)
-            run_macro_agent()
             
-            # 2. Quant & Risk Agents run every 60 minutes (every 12th loop)
+            # All 3 Agents run every 60 minutes (every 12th loop) to save Free Tier API limits
             if loop_count % 12 == 0:
+                run_macro_agent()
                 run_quant_agent()
                 run_risk_agent()
                 
