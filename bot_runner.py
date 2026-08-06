@@ -378,6 +378,10 @@ def start_scheduler():
             time.sleep(60)
 
 if __name__ == "__main__":
+    import subprocess
+    print("[System] Spawning Family Office Dashboard API...")
+    subprocess.Popen(["python", "dashboard_api.py"])
+    
     # If you want to test it once immediately when you start it, uncomment the line below:
     # run_bot() 
     start_scheduler()

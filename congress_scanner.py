@@ -1,11 +1,14 @@
 import os
+import json
 from datetime import datetime
 import google.genai as genai
+from google.genai import types
 
 def generate_congress_report():
     """
     Uses Gemini's live Google Search grounding to find recent 
     Congressional stock trades and formats them for Discord.
+    Also extracts the JSON for the AI Evaluator.
     """
     try:
         client = genai.Client()
@@ -17,16 +20,25 @@ def generate_congress_report():
     Search the web for the most recent U.S. Congressional stock trades and disclosures (made within the last 7 days).
     Check resources like Quiver Quantitative, Capitol Trades, Unusual Whales, or recent news articles.
     
-    Format the response as a clear, highly readable alert for a Discord trading channel.
-    Limit it to the 3 most significant or interesting trades.
+    You MUST output valid JSON only. Your JSON must match this exact schema:
+    {
+        "trades": [
+            {
+                "catalyst_title": "string (Politician's Name & Role)",
+                "ticker": "string",
+                "direction": "LONG or SHORT (Buy=LONG, Sell=SHORT)",
+                "timeframe": "string (e.g. Medium-term)",
+                "entry_price": float (estimate the closing price of the day it was traded, or just 0 if unknown),
+                "take_profit": float (estimate a 20% gain from entry),
+                "stop_loss": float (estimate a 10% loss from entry),
+                "setup_context": "string (Why this is interesting, committee assignments etc.)"
+            }
+        ],
+        "discord_message": "string (The highly engaging Discord message using emojis and bold text, formatting the trades)"
+    }
     
-    For each trade, include:
-    - The Politician's Name & Party/Role
-    - The Ticker / Company
-    - Buy or Sell?
-    - The estimated amount or range (e.g., $100k - $250k)
-    - The exact Date Traded and the Date Disclosed
-    - A 1-sentence analysis on why this is interesting (e.g. committee assignments, pending legislation, etc.)
+    Format the discord_message as a clear, highly readable alert for a Discord trading channel.
+    Limit it to the 3 most significant or interesting trades.
     
     Use formatting like:
     🏛️ **Nancy Pelosi (D-CA)**
@@ -35,7 +47,7 @@ def generate_congress_report():
     **Dates:** Traded on 2026-07-20 (Disclosed: 2026-08-01)
     **Context:** Sits on committee relevant to semiconductors...
     
-    If no new trades have been disclosed in the last 7 days, just say "No major congressional trades disclosed this week."
+    If no new trades have been disclosed in the last 7 days, your discord_message should say "No major congressional trades disclosed this week." and trades array should be empty.
     """
     
     try:
@@ -43,18 +55,47 @@ def generate_congress_report():
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
-            config={
-                'tools': [{'google_search': {}}]
-            }
+            config=types.GenerateContentConfig(
+                tools=[{'google_search': {}}],
+                response_mime_type="application/json"
+            )
         )
         
+        data = json.loads(response.text)
+        
+        # Save structured data for the AI Evaluator
+        if len(data.get('trades', [])) > 0:
+            save_predictions_to_archive(data['trades'])
+        
         report = f"🦅 **Capitol Hill Insider Trading Report ({datetime.now().strftime('%Y-%m-%d')})** 🦅\n\n"
-        report += response.text
+        report += data['discord_message']
         return report
 
     except Exception as e:
         print(f"Congress Scanner Error: {e}")
         return f"⚠️ Congress Scanner failed to generate report: {e}"
+
+def save_predictions_to_archive(trades):
+    archive_file = "ai_trade_history.json"
+    history = []
+    
+    if os.path.exists(archive_file):
+        try:
+            with open(archive_file, "r") as f:
+                history = json.load(f)
+        except Exception:
+            history = []
+            
+    # Append timestamp to each trade
+    today = datetime.now().strftime("%Y-%m-%d")
+    for trade in trades:
+        trade['date_issued'] = today
+        history.append(trade)
+        
+    with open(archive_file, "w") as f:
+        json.dump(history, f, indent=4)
+    print(f"Saved {len(trades)} structured congressional predictions for future backtesting.")
+
 
 if __name__ == "__main__":
     print("Testing Congress Scanner...")

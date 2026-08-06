@@ -91,6 +91,50 @@ def run_macro_agent():
     except Exception as e:
         print(f"Macro Agent Error: {e}")
 
+def run_cio_agent():
+    """
+    The Chief Investment Officer.
+    Runs at 07:50 AM to correlate Macro, Micro, and Math.
+    Overwrites the Master Brain with a synthesized Correlation Matrix.
+    """
+    if not client: return
+    
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] 👔 CIO Agent synthesizing correlation matrix...")
+    current_brain = get_master_brain()
+    
+    from data_manager import calculate_correlation_matrix
+    math_matrix = calculate_correlation_matrix(30)
+    
+    prompt = (
+        "You are the Chief Investment Officer (CIO) of an autonomous AI hedge fund.\n"
+        "Your analysts have been dumping unorganized intelligence into the Master Brain all night. "
+        "Your job is to read all of it, correlate it, and output a strict, synthesized 'Cross-Market Correlation Matrix'.\n\n"
+        "CRITICAL RULE: You must base all your correlations on the hard mathematical precedence provided below. Do NOT hallucinate correlations. "
+        "If Gold and BTC have a negative correlation mathematically, you must factor that in when reading the Macro Agent's gold report.\n\n"
+        f"{math_matrix}\n\n"
+        f"--- RAW MASTER BRAIN ---\n{current_brain}\n\n"
+        "Instructions:\n"
+        "1. Synthesize the raw Master Brain.\n"
+        "2. Cross-reference the agent findings with the exact mathematical correlation matrix provided.\n"
+        "3. Output a highly organized report detailing where Macro, Micro, and Math align (High Probability) and where they contradict (Do Not Trade).\n"
+        "This output will become the NEW Master Brain."
+    )
+    
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
+        output = response.text.strip()
+        
+        # Overwrite the chaotic brain with the CIO's synthesized matrix
+        with open(MASTER_BRAIN_FILE, "w", encoding="utf-8") as f:
+            f.write("# 👔 CIO Cross-Market Correlation Matrix\n\n" + output)
+            
+        print("✅ CIO successfully synthesized the Master Brain.")
+    except Exception as e:
+        print(f"CIO Agent Error: {e}")
+
 def run_quant_agent():
     """Reads 4H price action and math to dictate structural trends."""
     if not client: return
@@ -218,11 +262,22 @@ def deep_research_loop():
     # 2. Run the Multi-Timeframe Grid Search
     subprocess.run(["python", "backtest.py"])
     
+    # 3. AI Evaluator (Self-Feedback Loop)
+    print("Grading past AI predictions...")
+    from ai_evaluator import evaluate_predictions
+    report = evaluate_predictions()
+    if report:
+        append_master_brain("AI Performance Evaluator", report)
+        
     loop_count = 0
     while True:
         now = datetime.now()
         
-        # 07:55 AM -> Compact the brain
+        # 07:50 AM -> Chief Investment Officer synthesizes the Brain
+        if now.hour == 7 and now.minute == 50:
+            run_cio_agent()
+            
+        # 07:55 AM -> Compact the brain (backup)
         if now.hour == 7 and now.minute >= 55:
             compact_master_brain()
             

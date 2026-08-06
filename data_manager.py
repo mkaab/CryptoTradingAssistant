@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 
 DB_FILE = "market_data.db"
-TARGET_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD"]
+TARGET_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "GC=F", "DX-Y.NYB"]
 INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
 def get_db_connection():
@@ -124,6 +124,45 @@ def get_historical_data(symbol, interval, days=30):
         df['time'] = pd.to_datetime(df['time'])
         
     return df
+
+def calculate_correlation_matrix(days=30):
+    """
+    Calculates the Pearson correlation coefficient matrix between all TARGET_SYMBOLS
+    over the last N days using 1d closing prices.
+    Returns a formatted markdown string of the correlation matrix to feed to the CIO.
+    """
+    try:
+        conn = get_db_connection()
+        dfs = []
+        for symbol in TARGET_SYMBOLS:
+            query = "SELECT time, close FROM ohlcv_1d WHERE symbol=? ORDER BY time DESC LIMIT ?"
+            df = pd.read_sql_query(query, conn, params=(symbol, days))
+            if not df.empty:
+                df = df.rename(columns={'close': symbol})
+                df['time'] = pd.to_datetime(df['time'])
+                df.set_index('time', inplace=True)
+                dfs.append(df)
+        conn.close()
+        
+        if not dfs:
+            return "No data available for correlation matrix."
+            
+        # Merge all dataframes on time
+        merged_df = dfs[0]
+        for i in range(1, len(dfs)):
+            merged_df = merged_df.join(dfs[i], how='inner')
+            
+        # Calculate Pearson correlation
+        corr_matrix = merged_df.corr(method='pearson')
+        
+        # Format as string
+        report = "### 30-Day Pearson Correlation Matrix (Mathematical Precedence)\n"
+        report += "*(1.0 = Perfect positive correlation, -1.0 = Perfect inverse correlation)*\n\n"
+        report += corr_matrix.round(3).to_string()
+        return report
+        
+    except Exception as e:
+        return f"Error calculating correlation matrix: {e}"
 
 if __name__ == "__main__":
     print("Initializing Database and running first sync...")
