@@ -1,8 +1,10 @@
 import sqlite3
 import pandas as pd
-import yfinance as yf
 from datetime import datetime
 import os
+import ccxt
+from twelvedata import TDClient
+import time
 
 DB_FILE = "market_data.db"
 TARGET_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "GC=F", "DX-Y.NYB"]
@@ -35,29 +37,56 @@ def init_db():
 
 def fetch_and_store_data(symbol, interval, period="30d"):
     """
-    Downloads data from yfinance and upserts it into the SQLite database.
+    Downloads data from ccxt (Crypto) or TwelveData (Macro) and upserts it.
     """
     try:
-        # 1m data is only available for the last 7 days on Yahoo Finance
-        if interval == "1m" and period not in ["1d", "5d", "7d"]:
-            period = "7d"
+        if symbol in ["BTC-USD", "ETH-USD", "SOL-USD"]:
+            # Crypto -> CCXT (Kucoin)
+            exchange = ccxt.kucoin({'enableRateLimit': True})
+            ccxt_symbol = symbol.replace("-USD", "/USDT")
             
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(interval=interval, period=period)
-        
-        if df.empty:
-            print(f"⚠️ No data fetched for {symbol} ({interval})")
-            return
+            # Map interval to KuCoin
+            limit = 1500
             
-        df = df.reset_index()
-        df.columns = [c.lower() for c in df.columns]
-        
-        time_col = 'datetime' if 'datetime' in df.columns else 'date'
-        df = df.rename(columns={time_col: 'time'})
-        
-        # Ensure time is timezone naive for sqlite and convert to string
-        df['time'] = pd.to_datetime(df['time']).dt.tz_localize(None).dt.strftime('%Y-%m-%d %H:%M:%S')
-        
+            ohlcv = exchange.fetch_ohlcv(ccxt_symbol, interval, limit=limit)
+            if not ohlcv:
+                print(f"⚠️ No data fetched for {symbol} ({interval})")
+                return
+                
+            df = pd.DataFrame(ohlcv, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
+            df['time'] = pd.to_datetime(df['time'], unit='ms').dt.strftime('%Y-%m-%d %H:%M:%S')
+            
+        else:
+            # Macro -> TwelveData
+            td_key = os.getenv("TWELVEDATA_API_KEY")
+            if not td_key:
+                print(f"⚠️ TWELVEDATA_API_KEY is missing. Cannot fetch {symbol}.")
+                return
+                
+            td = TDClient(apikey=td_key)
+            td_symbol = "XAU/USD" if symbol == "GC=F" else "DXY"
+            
+            # Map intervals for TwelveData
+            td_intervals = {"1m": "1min", "5m": "5min", "15m": "15min", "1h": "1h", "4h": "4h", "1d": "1day"}
+            td_interval = td_intervals.get(interval, "1h")
+            
+            ts = td.time_series(symbol=td_symbol, interval=td_interval, outputsize=1500)
+            df = ts.as_pandas()
+            
+            if df is None or df.empty:
+                print(f"⚠️ No data fetched for {symbol} ({interval})")
+                return
+                
+            df = df.reset_index()
+            df = df.rename(columns={'datetime': 'time'})
+            df['time'] = pd.to_datetime(df['time']).dt.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # TwelveData doesn't always have volume for index/commodities, ensure it exists
+            if 'volume' not in df.columns:
+                df['volume'] = 0.0
+                
+        # Ensure correct column order
+        df = df[['time', 'open', 'high', 'low', 'close', 'volume']]
         df['symbol'] = symbol
         
         # Keep only required columns
