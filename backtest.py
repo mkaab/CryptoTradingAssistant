@@ -270,19 +270,19 @@ def backtest_rapid_fire(symbol="GC=F", days=30, interval="5m"):
             entry = current['close'] # Enter at close of the flip candle
             tp = entry * (1.0 + 0.005)
             sl = entry * (1.0 - 0.015)
-            trades.append({'time': current['datetime'] if 'datetime' in current else current['date'], 'direction': 'LONG', 'entry': entry, 'sl': sl, 'tp': tp})
+            trades.append({'time': current['time'], 'direction': 'LONG', 'entry': entry, 'sl': sl, 'tp': tp})
             
         elif shortCondition:
             entry = current['close']
             tp = entry * (1.0 - 0.005)
             sl = entry * (1.0 + 0.015)
-            trades.append({'time': current['datetime'] if 'datetime' in current else current['date'], 'direction': 'SHORT', 'entry': entry, 'sl': sl, 'tp': tp})
+            trades.append({'time': current['time'], 'direction': 'SHORT', 'entry': entry, 'sl': sl, 'tp': tp})
 
     print(f"Generated {len(trades)} signals. Simulating outcomes...")
     
     # Simplified outcome simulation
     for trade in trades:
-        future_data = df[df['date'] > trade['time']] if 'date' in df.columns else df[df['datetime'] > trade['time']]
+        future_data = df[df['time'] > trade['time']]
         for _, candle in future_data.iterrows():
             if trade['direction'] == 'LONG':
                 if candle['low'] <= trade['sl']:

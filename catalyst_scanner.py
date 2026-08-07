@@ -64,9 +64,9 @@ def generate_catalyst_report():
     Identify 1 to 3 highly actionable swing trade setups based on the news you find.
     
     You MUST output valid JSON only. Your JSON must match this exact schema:
-    {
+    {{
         "trades": [
-            {
+            {{
                 "catalyst_title": "string",
                 "ticker": "string (e.g. BTC-USD, XAU=F)",
                 "direction": "LONG or SHORT",
@@ -75,10 +75,10 @@ def generate_catalyst_report():
                 "take_profit": float,
                 "stop_loss": float,
                 "setup_context": "string (Why this catalyst drives price)"
-            }
+            }}
         ],
         "discord_message": "string (The highly engaging Discord message using emojis and bold text, formatting the trades)"
-    }
+    }}
     
     For the entry_price, take_profit, and stop_loss, they MUST be floats (numbers). If the price is a range, use the most aggressive price in the range (i.e. the best entry price closest to the stop loss).
     Make sure your discord_message contains horizontal rules (---) separating the new trades, and a dedicated "**Updates on Active Trades**" section. Do not include standard pleasantries, just the alpha.
