@@ -90,12 +90,19 @@ def generate_catalyst_report():
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                tools=[{'google_search': {}}],
-                response_mime_type="application/json"
+                tools=[{'google_search': {}}]
             )
         )
         
-        data = json.loads(response.text)
+        raw_text = response.text.strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.startswith("```"):
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+            
+        data = json.loads(raw_text.strip())
         
         # Save structured data for the AI Evaluator
         save_predictions_to_archive(data['trades'])
