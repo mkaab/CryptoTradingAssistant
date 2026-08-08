@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, Brain, TrendingUp } from 'lucide-react';
+import { Activity, Brain, TrendingUp, BarChart2 } from 'lucide-react';
 
 interface Trade {
   ticker: string;
@@ -23,6 +23,7 @@ function App() {
   const [masterBrain, setMasterBrain] = useState<string>('Loading Master Brain...');
   const [history, setHistory] = useState<Trade[]>([]);
   const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [backtests, setBacktests] = useState<string>('Loading Backtest Results...');
 
   // In production, we assume the API is hosted on the same origin. 
   // For local Vite dev, we'd need to proxy, but for simplicity here we just use relative path 
@@ -32,10 +33,11 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [brainRes, histRes, statRes] = await Promise.all([
+        const [brainRes, histRes, statRes, backRes] = await Promise.all([
           fetch(`${API_BASE}/api/master_brain`).catch(() => null),
           fetch(`${API_BASE}/api/trade_history`).catch(() => null),
           fetch(`${API_BASE}/api/system_status`).catch(() => null),
+          fetch(`${API_BASE}/api/backtest_results`).catch(() => null),
         ]);
 
         if (brainRes?.ok) {
@@ -51,6 +53,11 @@ function App() {
         if (statRes?.ok) {
           const data = await statRes.json();
           setStatus(data);
+        }
+        
+        if (backRes?.ok) {
+          const data = await backRes.json();
+          setBacktests(data.content || 'No backtest results available.');
         }
       } catch (err) {
         console.error('Failed to fetch data', err);
@@ -106,6 +113,16 @@ function App() {
               {status?.bot_active ? 'ACTIVE' : 'IDLE'}
             </span>
           </div>
+        </div>
+      </div>
+      
+      <div className="glass-panel" style={{ gridColumn: 'span 3' }}>
+        <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0 }}>
+          <BarChart2 size={24} color="#a0a0a0" />
+          Strategy Performance (Backtest Engine)
+        </h2>
+        <div className="markdown-content" style={{ whiteSpace: 'pre-wrap', maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
+          {backtests}
         </div>
       </div>
 

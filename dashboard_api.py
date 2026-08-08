@@ -13,6 +13,7 @@ CORS(app)
 DB_FILE = "market_data.db"
 HISTORY_FILE = "ai_trade_history.json"
 MASTER_BRAIN_FILE = "master_brain.md"
+BACKTEST_FILE = "backtest_results.md"
 
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
@@ -26,6 +27,17 @@ def get_master_brain():
         with open(MASTER_BRAIN_FILE, 'r', encoding='utf-8') as f:
             content = f.read()
         return jsonify({"content": content})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/backtest_results', methods=['GET'])
+def get_backtest_results():
+    try:
+        if os.path.exists(BACKTEST_FILE):
+            with open(BACKTEST_FILE, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return jsonify({"content": content})
+        return jsonify({"content": "No backtest results available."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
