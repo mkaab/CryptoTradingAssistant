@@ -94,6 +94,9 @@ def generate_catalyst_report():
             )
         )
         
+        if not response.text:
+            raise ValueError("Gemini API returned an empty response. (Possible safety filter block or API timeout)")
+            
         raw_text = response.text.strip()
         if raw_text.startswith("```json"):
             raw_text = raw_text[7:]

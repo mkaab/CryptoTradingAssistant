@@ -105,14 +105,28 @@ def run_cio_agent():
     from data_manager import calculate_correlation_matrix
     math_matrix = calculate_correlation_matrix(30)
     
+    # Load Macro Context (Catalysts, Congress, Multi-month swings)
+    macro_context = "No historical long-term catalysts found."
+    if os.path.exists("ai_trade_history.json"):
+        with open("ai_trade_history.json", "r") as f:
+            try:
+                history = json.load(f)
+                macro_context = json.dumps(history[-10:], indent=2) # Last 10 major fundamental events
+            except Exception:
+                pass
+                
     prompt = (
         "You are the Chief Investment Officer (CIO) of an autonomous AI hedge fund.\n"
         "Your analysts have been dumping unorganized intelligence into the Master Brain all night. "
         "Your job is to read all of it, correlate it, and output a strict, synthesized 'Cross-Market Correlation Matrix'.\n\n"
         "CRITICAL RULE: You must base all your correlations on the hard mathematical precedence provided below. Do NOT hallucinate correlations. "
         "If Gold and BTC have a negative correlation mathematically, you must factor that in when reading the Macro Agent's gold report.\n\n"
+        "--- 1. MACRO/FUNDAMENTAL CONTEXT (3-Month Horizon) ---\n"
+        "These are major catalysts and congressional trades dictating the long-term trend:\n"
+        f"{macro_context}\n\n"
+        "--- 2. MATHEMATICAL CORRELATIONS (30-Day Horizon) ---\n"
         f"{math_matrix}\n\n"
-        f"--- RAW MASTER BRAIN ---\n{current_brain}\n\n"
+        f"--- 3. RAW OVERNIGHT RESEARCH (Daily Horizon) ---\n{current_brain}\n\n"
         "Instructions:\n"
         "1. Synthesize the raw Master Brain.\n"
         "2. Cross-reference the agent findings with the exact mathematical correlation matrix provided.\n"
@@ -214,9 +228,17 @@ def compile_morning_strategy():
         
     current_brain = get_master_brain()
     
+    # Load Micro Context (Backtest Performance)
+    micro_context = "No backtest results available."
+    if os.path.exists("backtest_results.md"):
+        with open("backtest_results.md", "r") as f:
+            micro_context = f.read()
+            
     pm_prompt = (
-        "You are the Head Portfolio Manager. Read the following master knowledge base accumulated over the night.\n"
-        f"--- MASTER BRAIN ---\n{current_brain[-5000:]}\n\n"
+        "You are the Head Portfolio Manager. Read the following master knowledge base accumulated over the night, "
+        "as well as the latest Backtest Results to see which strategy is mathematically winning right now.\n\n"
+        f"--- MASTER BRAIN (MACRO/FUNDAMENTALS) ---\n{current_brain[-5000:]}\n\n"
+        f"--- BACKTEST RESULTS (MICRO/STRATEGY) ---\n{micro_context}\n\n"
         "Based on all this research, output a STRICT JSON configuration file that will dictate how the trading bot behaves today.\n"
         "Your output must be ONLY valid JSON, no markdown formatting.\n"
         "The JSON MUST follow this exact structure:\n"
