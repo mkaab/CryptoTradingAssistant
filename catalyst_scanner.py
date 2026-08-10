@@ -93,7 +93,8 @@ def generate_catalyst_report():
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                tools=[{'google_search': {}}]
+                tools=[{'google_search': {}}],
+                response_mime_type="application/json"
             )
         )
         
@@ -108,7 +109,11 @@ def generate_catalyst_report():
         if raw_text.endswith("```"):
             raw_text = raw_text[:-3]
             
-        data = json.loads(raw_text.strip())
+        try:
+            data = json.loads(raw_text.strip())
+        except json.JSONDecodeError as e:
+            print(f"❌ Failed to parse JSON from Gemini. Raw text was:\n{raw_text}")
+            raise e
         
         # Save structured data for the AI Evaluator
         save_predictions_to_archive(data['trades'])

@@ -398,10 +398,13 @@ def start_scheduler():
             time.sleep(60)
 
 if __name__ == "__main__":
+    # Ensure database is synced on boot (safely appends, does not overwrite)
+    from data_manager import update_all_data
+    update_all_data()
+
+    # Spawn the dashboard API in the background
     import subprocess
     print("[System] Spawning Family Office Dashboard API...")
     subprocess.Popen(["python", "dashboard_api.py"])
     
-    # If you want to test it once immediately when you start it, uncomment the line below:
-    # run_bot() 
     start_scheduler()
