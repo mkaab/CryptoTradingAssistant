@@ -85,6 +85,7 @@ def generate_catalyst_report():
     
     For the entry_price, take_profit, and stop_loss, they MUST be floats (numbers). If the price is a range, use the most aggressive price in the range (i.e. the best entry price closest to the stop loss).
     Make sure your discord_message contains horizontal rules (---) separating the new trades, and a dedicated "**Updates on Active Trades**" section. Do not include standard pleasantries, just the alpha.
+    CRITICAL: YOU MUST ESCAPE ALL DOUBLE QUOTES (") INSIDE YOUR discord_message AND setup_context STRINGS USING A BACKSLASH (\"). IF YOU USE UNESCAPED QUOTES, OUR SYSTEM WILL CRASH WITH A JSON DECODING ERROR!
     """
 
     try:
@@ -93,8 +94,7 @@ def generate_catalyst_report():
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                tools=[{'google_search': {}}],
-                response_mime_type="application/json"
+                tools=[{'google_search': {}}]
             )
         )
         
