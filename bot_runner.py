@@ -285,6 +285,24 @@ def run_bot(risk_modifier="NORMAL", sentiment=None):
                 
                 state[symbol] = setup_id
                 save_state(state)
+                
+                # --- Save to Persistent Trade History ---
+                from file_store import read_file, write_file
+                history_content = read_file("ai_trade_history.json")
+                history = json.loads(history_content) if history_content else []
+                
+                trade_record = {
+                    "catalyst_title": f"Live SMC Setup: {bias} on 5m",
+                    "ticker": symbol,
+                    "direction": setup['direction'],
+                    "entry_price": setup['entry'],
+                    "take_profit": setup['tp'],
+                    "stop_loss": setup['sl'],
+                    "setup_context": f"Algorithmic execution based on 5m SMC and HTF bias. Risk: {risk_modifier}",
+                    "date_issued": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                history.append(trade_record)
+                write_file("ai_trade_history.json", json.dumps(history, indent=4))
             else:
                 print(f"{symbol} - Setup already alerted.")
         else:
