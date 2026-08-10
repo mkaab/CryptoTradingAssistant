@@ -228,8 +228,8 @@ def backtest_smc(symbol="GC=F", days=30, interval="5m", htf_interval="4h"):
     report += f"- **Wins:** {wins} | **Losses:** {losses} | **Break-Even:** {be_trades}\n"
     report += f"- **Risk/Reward:** 1:2.5 (With 1:1 Trailing Stop)\n"
     
-    with open("backtest_results.md", "w") as f:
-        f.write(report)
+    from file_store import write_file
+    write_file("backtest_results.md", report, mode="a")
         
     print(report)
 
@@ -319,15 +319,15 @@ def backtest_rapid_fire(symbol="GC=F", days=30, interval="5m"):
     report += f"- **Wins:** {wins} | **Losses:** {losses}\n"
     report += f"- **Risk/Reward:** Inverted (Risk $10 to make $3.33)\n\n"
     
-    with open("backtest_results.md", "a") as f:
-        f.write(report)
+    from file_store import write_file
+    write_file("backtest_results.md", report, mode="a")
         
     print(report)
 
 if __name__ == "__main__":
     # Clear the results file first
-    with open("backtest_results.md", "w") as f:
-        f.write("# MULTI-TIMEFRAME GRID SEARCH RESULTS (7D & 30D)\n\n")
+    from file_store import write_file
+    write_file("backtest_results.md", "# MULTI-TIMEFRAME GRID SEARCH RESULTS (7D & 30D)\n\n", mode="w")
         
     print("Starting Grid Search...")
     

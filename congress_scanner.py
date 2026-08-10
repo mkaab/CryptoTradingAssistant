@@ -15,10 +15,28 @@ def generate_congress_report():
     except Exception as e:
         return f"⚠️ Failed to initialize Gemini Client: {e}"
         
+    # --- GET ACTIVE POSITIONS FOR UPDATES ---
+    active_positions = "ACTIVE CONGRESSIONAL TRADES (PAST PREDICTIONS):\n"
+    try:
+        from file_store import read_file
+        content = read_file("ai_trade_history.json")
+        if content:
+            history = json.loads(content)
+            recent_trades = history[-5:] if len(history) > 5 else history
+            active_positions += json.dumps(recent_trades, indent=2)
+        else:
+            active_positions += "No active positions yet."
+    except Exception:
+        active_positions += "Error reading history."
+        
     prompt = """
     You are an elite political trading analyst.
     Search the web for the most recent U.S. Congressional stock trades and disclosures (made within the last 7 days).
     Check resources like Quiver Quantitative, Capitol Trades, Unusual Whales, or recent news articles.
+    
+    {active_positions}
+    
+    CRITICAL DEDUPLICATION RULE: DO NOT output a trade setup if a highly similar setup for the exact same politician and exact same ticker already exists in the ACTIVE CONGRESSIONAL TRADES history above. Only output GENUINELY NEW disclosures. If you only find old news, return an empty trades array.
     
     You MUST output valid JSON only. Your JSON must match this exact schema:
     {
@@ -86,25 +104,31 @@ def generate_congress_report():
         return f"⚠️ Congress Scanner failed to generate report: {e}"
 
 def save_predictions_to_archive(trades):
+    # Save to history
     archive_file = "ai_trade_history.json"
-    history = []
-    
-    if os.path.exists(archive_file):
-        try:
-            with open(archive_file, "r") as f:
-                history = json.load(f)
-        except Exception:
+    try:
+        from file_store import read_file, write_file
+        content = read_file(archive_file)
+        if content:
+            history = json.loads(content)
+        else:
             history = []
-            
+    except Exception:
+        history = []
+        
     # Append timestamp to each trade
     today = datetime.now().strftime("%Y-%m-%d")
     for trade in trades:
-        trade['date_issued'] = today
+        if 'date_issued' not in trade:
+            trade['date_issued'] = today
         history.append(trade)
+    
+    try:
+        write_file(archive_file, json.dumps(history, indent=4))
+    except Exception as e:
+        print(f"Error saving history: {e}")
         
-    with open(archive_file, "w") as f:
-        json.dump(history, f, indent=4)
-    print(f"Saved {len(trades)} structured congressional predictions for future backtesting.")
+    print(f"Saved {len(trades)} congressional trades to {archive_file} for future backtesting.")
 
 
 if __name__ == "__main__":

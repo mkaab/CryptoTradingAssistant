@@ -33,12 +33,13 @@ def generate_catalyst_report():
     # --- GET ACTIVE POSITIONS FOR UPDATES ---
     active_positions = "ACTIVE SWING TRADES (PAST PREDICTIONS):\n"
     try:
-        if os.path.exists("ai_trade_history.json"):
-            with open("ai_trade_history.json", "r") as f:
-                history = json.load(f)
-                # Just grab the last 5 trades so we don't overwhelm the prompt
-                recent_trades = history[-5:] if len(history) > 5 else history
-                active_positions += json.dumps(recent_trades, indent=2)
+        from file_store import read_file
+        content = read_file("ai_trade_history.json")
+        if content:
+            history = json.loads(content)
+            # Just grab the last 5 trades so we don't overwhelm the prompt
+            recent_trades = history[-5:] if len(history) > 5 else history
+            active_positions += json.dumps(recent_trades, indent=2)
         else:
             active_positions += "No active positions yet."
     except Exception:
@@ -62,6 +63,8 @@ def generate_catalyst_report():
     - Major Mainnet Launches, Airdrops, or Protocol Upgrades
 
     Identify 1 to 3 highly actionable swing trade setups based on the news you find.
+    
+    CRITICAL DEDUPLICATION RULE: DO NOT output a trade setup if a highly similar setup for the exact same catalyst already exists in the ACTIVE SWING TRADES history above. Only output GENUINELY NEW catalysts. If you only find old news, return an empty trades array.
     
     You MUST output valid JSON only. Your JSON must match this exact schema:
     {{
@@ -119,24 +122,29 @@ def generate_catalyst_report():
         return f"⚠️ Catalyst Scanner failed to generate report: {e}"
 
 def save_predictions_to_archive(trades):
+    # Save to history
     archive_file = "ai_trade_history.json"
-    history = []
-    
-    if os.path.exists(archive_file):
-        try:
-            with open(archive_file, "r") as f:
-                history = json.load(f)
-        except Exception:
+    try:
+        from file_store import read_file, write_file
+        content = read_file(archive_file)
+        if content:
+            history = json.loads(content)
+        else:
             history = []
-            
+    except Exception:
+        history = []
+        
     # Append timestamp to each trade
     today = datetime.now().strftime("%Y-%m-%d")
     for trade in trades:
         trade['date_issued'] = today
         history.append(trade)
+    
+    try:
+        write_file(archive_file, json.dumps(history, indent=4))
+    except Exception as e:
+        print(f"Error saving history: {e}")
         
-    with open(archive_file, "w") as f:
-        json.dump(history, f, indent=4)
     print(f"Saved {len(trades)} structured predictions to {archive_file} for future backtesting.")
 
 if __name__ == "__main__":

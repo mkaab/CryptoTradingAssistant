@@ -42,14 +42,15 @@ def send_alert(message):
 
 # --- State Management ---
 def load_state():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
+    from file_store import read_file
+    content = read_file(STATE_FILE)
+    if content:
+        return json.loads(content)
     return {}
 
 def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
+    from file_store import write_file
+    write_file(STATE_FILE, json.dumps(state, indent=4))
 
 # --- Helper Functions ---
 def make_request(url, max_retries=3, delay=1):
@@ -156,12 +157,13 @@ def check_ltf_setup(df_5m, bias, risk_modifier="NORMAL", sentiment=None):
         return None
         
     ai_config = {}
-    if os.path.exists("ai_strategy_config.json"):
-        try:
-            with open("ai_strategy_config.json", "r") as f:
-                ai_config = json.load(f)
-        except:
-            pass
+    from file_store import read_file
+    try:
+        content = read_file("ai_strategy_config.json")
+        if content:
+            ai_config = json.loads(content)
+    except:
+        pass
             
     whipsaw_pct = ai_config.get("whipsaw_buffer_pct", 0.2) / 100.0
     allowed_dir = ai_config.get("allowed_direction", "BOTH")

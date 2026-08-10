@@ -5,35 +5,37 @@ import os
 import ccxt
 from twelvedata import TDClient
 import time
+from sqlalchemy import create_engine, text
 
 DB_FILE = "market_data.db"
 TARGET_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "GC=F", "DX-Y.NYB"]
 INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    return conn
+def get_engine():
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        return create_engine(db_url)
+    return create_engine(f"sqlite:///{DB_FILE}")
 
 def init_db():
-    conn = get_db_connection()
-    c = conn.cursor()
-    # Create tables for each interval
-    for interval in INTERVALS:
-        table_name = f"ohlcv_{interval}"
-        c.execute(f'''
-            CREATE TABLE IF NOT EXISTS {table_name} (
-                symbol TEXT,
-                time TIMESTAMP,
-                open REAL,
-                high REAL,
-                low REAL,
-                close REAL,
-                volume REAL,
-                PRIMARY KEY (symbol, time)
-            )
-        ''')
-    conn.commit()
-    conn.close()
+    engine = get_engine()
+    with engine.begin() as conn:
+        for interval in INTERVALS:
+            table_name = f"ohlcv_{interval}"
+            conn.execute(text(f'''
+                CREATE TABLE IF NOT EXISTS {table_name} (
+                    symbol VARCHAR(50),
+                    time TIMESTAMP,
+                    open REAL,
+                    high REAL,
+                    low REAL,
+                    close REAL,
+                    volume REAL,
+                    PRIMARY KEY (symbol, time)
+                )
+            '''))
 
 def fetch_and_store_data(symbol, interval, period="30d"):
     """
@@ -94,20 +96,19 @@ def fetch_and_store_data(symbol, interval, period="30d"):
         df = df[columns_to_keep]
         
         # Upsert into database (INSERT OR REPLACE)
-        conn = get_db_connection()
+        # Upsert into database
+        engine = get_engine()
         table_name = f"ohlcv_{interval}"
         
-        # Pandas to_sql doesn't support ON CONFLICT, so we write a manual executemany
-        data = df.to_dict('records')
-        c = conn.cursor()
+        min_time = df['time'].min()
+        max_time = df['time'].max()
         
-        c.executemany(f'''
-            INSERT OR REPLACE INTO {table_name} (symbol, time, open, high, low, close, volume)
-            VALUES (:symbol, :time, :open, :high, :low, :close, :volume)
-        ''', data)
-        
-        conn.commit()
-        conn.close()
+        # Delete overlapping timeframe to prevent Primary Key violations, then insert
+        with engine.begin() as conn:
+            conn.execute(text(f"DELETE FROM {table_name} WHERE symbol = :symbol AND time >= :min_time AND time <= :max_time"),
+                         {"symbol": symbol, "min_time": min_time, "max_time": max_time})
+                         
+        df.to_sql(table_name, engine, if_exists='append', index=False)
         print(f"Synced {len(df)} candles for {symbol} ({interval}) to DB.")
         
     except Exception as e:
@@ -124,12 +125,12 @@ def update_all_data():
     for symbol in TARGET_SYMBOLS:
         for interval in INTERVALS:
             # Check if we have data for this symbol/interval
-            conn = get_db_connection()
-            c = conn.cursor()
+            # Check if we have data for this symbol/interval
+            engine = get_engine()
             table_name = f"ohlcv_{interval}"
-            c.execute(f"SELECT COUNT(*) FROM {table_name} WHERE symbol=?", (symbol,))
-            count = c.fetchone()[0]
-            conn.close()
+            with engine.connect() as conn:
+                result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name} WHERE symbol=:symbol"), {"symbol": symbol})
+                count = result.scalar()
             
             # If empty, do a bulk 30d fetch (or 7d for 1m). If it has data, just fetch the last 5 days incrementally.
             fetch_period = "30d" if count == 0 else "5d"
@@ -139,15 +140,14 @@ def get_historical_data(symbol, interval, days=30):
     """
     Reads data directly from the local SQLite database. Extremely fast.
     """
-    conn = get_db_connection()
+    engine = get_engine()
     table_name = f"ohlcv_{interval}"
     
     # Calculate cutoff date
     cutoff = datetime.now() - pd.Timedelta(days=days)
     
-    query = f"SELECT * FROM {table_name} WHERE symbol=? AND time >= ? ORDER BY time ASC"
-    df = pd.read_sql_query(query, conn, params=(symbol, cutoff))
-    conn.close()
+    query = f"SELECT * FROM {table_name} WHERE symbol='{symbol}' AND time >= '{cutoff}' ORDER BY time ASC"
+    df = pd.read_sql_query(query, engine)
     
     if not df.empty:
         df['time'] = pd.to_datetime(df['time'])
@@ -161,17 +161,16 @@ def calculate_correlation_matrix(days=30):
     Returns a formatted markdown string of the correlation matrix to feed to the CIO.
     """
     try:
-        conn = get_db_connection()
+        engine = get_engine()
         dfs = []
         for symbol in TARGET_SYMBOLS:
-            query = "SELECT time, close FROM ohlcv_1d WHERE symbol=? ORDER BY time DESC LIMIT ?"
-            df = pd.read_sql_query(query, conn, params=(symbol, days))
+            query = f"SELECT time, close FROM ohlcv_1d WHERE symbol='{symbol}' ORDER BY time DESC LIMIT {days}"
+            df = pd.read_sql_query(query, engine)
             if not df.empty:
                 df = df.rename(columns={'close': symbol})
                 df['time'] = pd.to_datetime(df['time'])
                 df.set_index('time', inplace=True)
                 dfs.append(df)
-        conn.close()
         
         if not dfs:
             return "No data available for correlation matrix."

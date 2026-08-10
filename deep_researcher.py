@@ -49,16 +49,15 @@ def get_todays_price_action():
     
     return summary
 
-# --- Master Brain Management ---
 def get_master_brain():
-    if os.path.exists(MASTER_BRAIN_FILE):
-        with open(MASTER_BRAIN_FILE, "r", encoding="utf-8") as f:
-            return f.read()
+    content = read_file(MASTER_BRAIN_FILE)
+    if content:
+        return content
     return "# Master Trading Brain\nThis is the core context file. It is currently empty. Start recording your knowledge here."
 
 def append_master_brain(agent_name, content):
-    with open(MASTER_BRAIN_FILE, "a", encoding="utf-8") as f:
-        f.write(f"\n\n### {agent_name} Update ({datetime.now().strftime('%Y-%m-%d %H:%M')})\n{content}")
+    entry = f"\n\n### {agent_name} Update ({datetime.now().strftime('%Y-%m-%d %H:%M')})\n{content}"
+    write_file(MASTER_BRAIN_FILE, entry, mode="a")
 
 # --- Agent Personas ---
 def run_macro_agent():
@@ -75,7 +74,8 @@ def run_macro_agent():
         "Instructions:\n"
         "1. Search the web for recent academic research papers on financial markets, crypto, or forex.\n"
         "2. If you find a novel strategy or a major macro event, write a 1-paragraph brief distilling the mathematical edge or rule we should adopt.\n"
-        "3. If nothing is new, reply EXACTLY with 'NO_UPDATE'."
+        "3. CRITICAL DEDUPLICATION RULE: Review the Firm's Master Brain above. Do NOT repeat observations that are already documented. Only append NEW insights, shifting trends, or contradictions.\n"
+        "4. If nothing is new, reply EXACTLY with 'NO_UPDATE'."
     )
     
     try:
@@ -107,13 +107,13 @@ def run_cio_agent():
     
     # Load Macro Context (Catalysts, Congress, Multi-month swings)
     macro_context = "No historical long-term catalysts found."
-    if os.path.exists("ai_trade_history.json"):
-        with open("ai_trade_history.json", "r") as f:
-            try:
-                history = json.load(f)
-                macro_context = json.dumps(history[-10:], indent=2) # Last 10 major fundamental events
-            except Exception:
-                pass
+    try:
+        content = read_file("ai_trade_history.json")
+        if content:
+            history = json.loads(content)
+            macro_context = json.dumps(history[-10:], indent=2) # Last 10 major fundamental events
+    except Exception:
+        pass
                 
     prompt = (
         "You are the Chief Investment Officer (CIO) of an autonomous AI hedge fund.\n"
@@ -142,8 +142,7 @@ def run_cio_agent():
         output = response.text.strip()
         
         # Overwrite the chaotic brain with the CIO's synthesized matrix
-        with open(MASTER_BRAIN_FILE, "w", encoding="utf-8") as f:
-            f.write("# 👔 CIO Cross-Market Correlation Matrix\n\n" + output)
+        write_file(MASTER_BRAIN_FILE, "# 👔 CIO Cross-Market Correlation Matrix\n\n" + output)
             
         print("✅ CIO successfully synthesized the Master Brain.")
     except Exception as e:
@@ -164,13 +163,16 @@ def run_quant_agent():
         "Instructions:\n"
         "1. Review the OHLCV net movements and volatility for the day.\n"
         "2. Is the market trending strongly, or is it choppy? What asset is outperforming?\n"
-        "3. Write a 1-paragraph summary of structural observations and rules to append to the master brain."
+        "3. CRITICAL DEDUPLICATION RULE: Review the Firm's Master Brain above. Do NOT repeat structural observations that are already documented unless the structure has explicitly broken. Only append NEW insights.\n"
+        "4. Write a 1-paragraph summary of structural observations and rules to append to the master brain. If nothing is new, reply EXACTLY with 'NO_UPDATE'."
     )
     
     try:
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt, config=types.GenerateContentConfig(temperature=0.3))
-        append_master_brain("Technical Quant", response.text.strip())
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🧮 Quant Agent updated the Master Brain.")
+        output = response.text.strip()
+        if output and "NO_UPDATE" not in output:
+            append_master_brain("Technical Quant", output)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] 🧮 Quant Agent updated the Master Brain.")
     except Exception as e:
         print(f"Quant Agent Error: {e}")
 
@@ -185,13 +187,16 @@ def run_risk_agent():
         "Instructions:\n"
         "1. Read the latest notes from the Macro Analyst and the Quant.\n"
         "2. Define the exact risk parameters. Should we widen stop losses due to extreme chop? Should we cut size?\n"
-        "3. Write a 1-paragraph rule to append to the master brain."
+        "3. CRITICAL DEDUPLICATION RULE: Review the Firm's Master Brain above. Do NOT repeat risk parameters that are already active unless they need to be changed.\n"
+        "4. Write a 1-paragraph rule to append to the master brain. If no changes to risk are needed, reply EXACTLY with 'NO_UPDATE'."
     )
     
     try:
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt, config=types.GenerateContentConfig(temperature=0.3))
-        append_master_brain("Risk Manager", response.text.strip())
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🛡️ Risk Manager updated the Master Brain.")
+        output = response.text.strip()
+        if output and "NO_UPDATE" not in output:
+            append_master_brain("Risk Manager", output)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] 🛡️ Risk Manager updated the Master Brain.")
     except Exception as e:
         print(f"Risk Agent Error: {e}")
 
@@ -209,15 +214,15 @@ def compact_master_brain():
         "RULES:\n"
         "1. Discard all temporary/expired news (e.g., 'CPI data released today').\n"
         "2. Keep ONLY permanent, structural truths (e.g., 'Gold tends to whipsaw 0.3% around 8:30 AM data releases').\n"
-        "3. Keep the entire document under 500 words.\n"
+        "3. PERSISTENT TIMESTAMPING: Preserve the chronology! You must attach the original date/time to every structural truth you compress, so we know WHEN it happened.\n"
+        "4. Keep the entire document under 500 words.\n"
         f"--- RAW BRAIN ---\n{current_brain}\n"
     )
     
     try:
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         compacted = "# Master Trading Brain (Distilled)\n\n" + response.text.strip()
-        with open(MASTER_BRAIN_FILE, "w", encoding="utf-8") as f:
-            f.write(compacted)
+        write_file(MASTER_BRAIN_FILE, compacted)
         print("✅ Master Brain successfully compacted and noise removed.")
     except Exception as e:
         print(f"❌ Failed to compact brain: {e}")
@@ -229,10 +234,7 @@ def compile_morning_strategy():
     current_brain = get_master_brain()
     
     # Load Micro Context (Backtest Performance)
-    micro_context = "No backtest results available."
-    if os.path.exists("backtest_results.md"):
-        with open("backtest_results.md", "r") as f:
-            micro_context = f.read()
+    micro_context = read_file("backtest_results.md", default_content="No backtest results available.")
             
     pm_prompt = (
         "You are the Head Portfolio Manager. Read the following master knowledge base accumulated over the night, "
@@ -252,17 +254,16 @@ def compile_morning_strategy():
     try:
         response = client.models.generate_content(model='gemini-2.5-flash', contents=pm_prompt)
         cleaned_json = response.text.replace('```json', '').replace('```', '').strip()
-        config_data = json.loads(cleaned_json)
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config_data, f, indent=4)
-        print("✅ Morning Strategy Config generated successfully.")
+        cleaned = json.loads(cleaned_json)
+        write_file(CONFIG_FILE, json.dumps(cleaned, indent=4))
+        print("✅ Portfolio Manager successfully set strategy config for today.")
         
         # Send Discord Alert with the strategy
         from bot_runner import send_discord_alert
         msg = (
             f"🌅 **Morning Shift Complete** 🌅\n"
             f"The AI Portfolio Manager has analyzed the overnight Master Brain and set today's strategy:\n"
-            f"```json\n{json.dumps(config_data, indent=2)}\n```\n"
+            f"```json\n{json.dumps(cleaned, indent=2)}\n```\n"
             f"The bot is now fully armed for the London Killzone."
         )
         send_discord_alert(msg)

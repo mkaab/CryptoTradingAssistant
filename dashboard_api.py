@@ -15,17 +15,22 @@ HISTORY_FILE = "ai_trade_history.json"
 MASTER_BRAIN_FILE = "master_brain.md"
 BACKTEST_FILE = "backtest_results.md"
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+from sqlalchemy import create_engine, text
+
+def get_engine():
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        return create_engine(db_url)
+    return create_engine(f"sqlite:///{DB_FILE}")
 
 # API Endpoints
 @app.route('/api/master_brain', methods=['GET'])
 def get_master_brain():
     try:
-        with open(MASTER_BRAIN_FILE, 'r', encoding='utf-8') as f:
-            content = f.read()
+        from file_store import read_file
+        content = read_file(MASTER_BRAIN_FILE)
         return jsonify({"content": content})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -33,20 +38,19 @@ def get_master_brain():
 @app.route('/api/backtest_results', methods=['GET'])
 def get_backtest_results():
     try:
-        if os.path.exists(BACKTEST_FILE):
-            with open(BACKTEST_FILE, 'r', encoding='utf-8') as f:
-                content = f.read()
-            return jsonify({"content": content})
-        return jsonify({"content": "No backtest results available."})
+        from file_store import read_file
+        content = read_file(BACKTEST_FILE, "No backtest results available.")
+        return jsonify({"content": content})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/trade_history', methods=['GET'])
 def get_trade_history():
     try:
-        if os.path.exists(HISTORY_FILE):
-            with open(HISTORY_FILE, 'r') as f:
-                history = json.load(f)
+        from file_store import read_file
+        content = read_file(HISTORY_FILE)
+        if content:
+            history = json.loads(content)
             return jsonify(history)
         return jsonify([])
     except Exception as e:
@@ -55,15 +59,16 @@ def get_trade_history():
 @app.route('/api/market_data/<symbol>/<interval>', methods=['GET'])
 def get_market_data(symbol, interval):
     try:
-        conn = get_db_connection()
+        engine = get_engine()
         table_name = f"ohlcv_{interval}"
         
         # Get the latest 100 candles
-        query = f"SELECT * FROM {table_name} WHERE symbol=? ORDER BY time DESC LIMIT 100"
-        rows = conn.execute(query, (symbol,)).fetchall()
-        conn.close()
-        
-        data = [dict(row) for row in rows]
+        query = text(f"SELECT * FROM {table_name} WHERE symbol=:symbol ORDER BY time DESC LIMIT 100")
+        with engine.connect() as conn:
+            result = conn.execute(query, {"symbol": symbol})
+            rows = result.fetchall()
+            
+        data = [dict(row._mapping) for row in rows]
         data.reverse() # Return chronological
         return jsonify(data)
     except Exception as e:
@@ -74,7 +79,7 @@ def get_system_status():
     return jsonify({
         "status": "ONLINE",
         "api_connected": True,
-        "database_synced": os.path.exists(DB_FILE),
+        "database_synced": True,
         "bot_active": True # In a real scenario, we could check the bot_runner process
     })
 
