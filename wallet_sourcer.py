@@ -6,14 +6,15 @@ import re
 WALLETS_FILE = "tracked_wallets.json"
 
 def load_tracked_wallets():
-    if os.path.exists(WALLETS_FILE):
-        with open(WALLETS_FILE, "r") as f:
-            return json.load(f)
+    from file_store import read_file
+    content = read_file(WALLETS_FILE)
+    if content:
+        return json.loads(content)
     return {}
 
 def save_tracked_wallets(wallets):
-    with open(WALLETS_FILE, "w") as f:
-        json.dump(wallets, f, indent=4)
+    from file_store import write_file
+    write_file(WALLETS_FILE, json.dumps(wallets, indent=4))
     print(f"✅ Saved {len(wallets)} wallets to {WALLETS_FILE}")
 
 def scrape_solana_top_holders(token_address, token_name, limit=20):

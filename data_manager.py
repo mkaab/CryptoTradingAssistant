@@ -1,23 +1,14 @@
-import sqlite3
 import pandas as pd
 from datetime import datetime
 import os
 import ccxt
 from twelvedata import TDClient
 import time
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from db import get_engine
 
-DB_FILE = "market_data.db"
 TARGET_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "GC=F", "DX-Y.NYB"]
 INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"]
-
-def get_engine():
-    db_url = os.environ.get("DATABASE_URL")
-    if db_url:
-        if db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql://", 1)
-        return create_engine(db_url)
-    return create_engine(f"sqlite:///{DB_FILE}")
 
 def init_db():
     engine = get_engine()
@@ -146,8 +137,8 @@ def get_historical_data(symbol, interval, days=30):
     # Calculate cutoff date
     cutoff = datetime.now() - pd.Timedelta(days=days)
     
-    query = f"SELECT * FROM {table_name} WHERE symbol='{symbol}' AND time >= '{cutoff}' ORDER BY time ASC"
-    df = pd.read_sql_query(query, engine)
+    query = text(f"SELECT * FROM {table_name} WHERE symbol = :symbol AND time >= :cutoff ORDER BY time ASC")
+    df = pd.read_sql_query(query, engine, params={"symbol": symbol, "cutoff": str(cutoff)})
     
     if not df.empty:
         df['time'] = pd.to_datetime(df['time'])
@@ -164,8 +155,8 @@ def calculate_correlation_matrix(days=30):
         engine = get_engine()
         dfs = []
         for symbol in TARGET_SYMBOLS:
-            query = f"SELECT time, close FROM ohlcv_1d WHERE symbol='{symbol}' ORDER BY time DESC LIMIT {days}"
-            df = pd.read_sql_query(query, engine)
+            query = text(f"SELECT time, close FROM ohlcv_1d WHERE symbol = :symbol ORDER BY time DESC LIMIT :lim")
+            df = pd.read_sql_query(query, engine, params={"symbol": symbol, "lim": days})
             if not df.empty:
                 df = df.rename(columns={'close': symbol})
                 df['time'] = pd.to_datetime(df['time'])

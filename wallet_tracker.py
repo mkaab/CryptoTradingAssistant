@@ -23,28 +23,28 @@ def send_discord_alert(message):
         print(f"Failed to send Discord alert: {e}")
 
 def load_tracked_wallets():
-    if not os.path.exists(WALLETS_FILE):
-        # Create a dummy config if it doesn't exist
-        dummy_wallets = {
-            "0x0000000000000000000000000000000000000000": "Vitalik Buterin (Example)",
-            "0x503828976D22510aad0201ac7EC88293211D23Da": "Smart Meme Trader"
-        }
-        with open(WALLETS_FILE, "w") as f:
-            json.dump(dummy_wallets, f, indent=4)
-        return dummy_wallets
-        
-    with open(WALLETS_FILE, "r") as f:
-        return json.load(f)
+    from file_store import read_file, write_file
+    content = read_file(WALLETS_FILE)
+    if content:
+        return json.loads(content)
+    # Create a default config if nothing exists
+    dummy_wallets = {
+        "0x0000000000000000000000000000000000000000": "Vitalik Buterin (Example)",
+        "0x503828976D22510aad0201ac7EC88293211D23Da": "Smart Meme Trader"
+    }
+    write_file(WALLETS_FILE, json.dumps(dummy_wallets, indent=4))
+    return dummy_wallets
 
 def load_state():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
+    from file_store import read_file
+    content = read_file(STATE_FILE)
+    if content:
+        return json.loads(content)
     return {}
 
 def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=4)
+    from file_store import write_file
+    write_file(STATE_FILE, json.dumps(state, indent=4))
 
 def check_wallet_activity(address, nickname, state):
     """

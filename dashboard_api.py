@@ -1,29 +1,19 @@
 import os
 import json
-import sqlite3
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
+from sqlalchemy import text
+from db import get_engine
 
 load_dotenv()
 
 app = Flask(__name__, static_folder='dashboard/dist')
 CORS(app)
 
-DB_FILE = "market_data.db"
 HISTORY_FILE = "ai_trade_history.json"
 MASTER_BRAIN_FILE = "master_brain.md"
 BACKTEST_FILE = "backtest_results.md"
-
-from sqlalchemy import create_engine, text
-
-def get_engine():
-    db_url = os.environ.get("DATABASE_URL")
-    if db_url:
-        if db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql://", 1)
-        return create_engine(db_url)
-    return create_engine(f"sqlite:///{DB_FILE}")
 
 # API Endpoints
 @app.route('/api/master_brain', methods=['GET'])

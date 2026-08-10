@@ -112,15 +112,15 @@ def generate_daily_context():
     # 2. Daily Backtest Results Update
     backtest_stats = "\n**Latest Backtest Performance (SMC Model)**\n"
     try:
-        if os.path.exists("backtest_results.md"):
-            with open("backtest_results.md", "r") as f:
-                bt = f.read()
-                # Parse out Win Rate and PnL
-                win_rate = [line for line in bt.split('\n') if 'Win Rate' in line]
-                pnl = [line for line in bt.split('\n') if 'Net PnL' in line]
-                if win_rate and pnl:
-                    backtest_stats += f"{win_rate[0].replace('- ', '')}\n"
-                    backtest_stats += f"{pnl[0].replace('- ', '')}\n"
+        from file_store import read_file
+        bt = read_file("backtest_results.md")
+        if bt:
+            # Parse out Win Rate and PnL
+            win_rate = [line for line in bt.split('\n') if 'Win Rate' in line]
+            pnl = [line for line in bt.split('\n') if 'Net PnL' in line]
+            if win_rate and pnl:
+                backtest_stats += f"{win_rate[0].replace('- ', '')}\n"
+                backtest_stats += f"{pnl[0].replace('- ', '')}\n"
         else:
             backtest_stats += "No backtest data available.\n"
     except:

@@ -119,9 +119,9 @@ def run_night_shift():
     
     # Save the Strategy Config
     try:
+        from file_store import write_file
         config_data = json.loads(cleaned_json)
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config_data, f, indent=4)
+        write_file(CONFIG_FILE, json.dumps(config_data, indent=4))
         print("✅ Strategy Config updated successfully.")
     except Exception as e:
         print(f"❌ Failed to parse Portfolio Manager JSON. Error: {e}")
@@ -133,8 +133,7 @@ def run_night_shift():
     journal_content += f"## Risk Manager Report\n{risk_report}\n\n"
     journal_content += f"## Portfolio Manager Decision\n```json\n{cleaned_json}\n```\n"
     
-    with open(JOURNAL_FILE, "w") as f:
-        f.write(journal_content)
+    write_file(JOURNAL_FILE, journal_content)
         
     print(f"✅ Night Shift complete. Journal saved to {JOURNAL_FILE}.")
 

@@ -5,12 +5,13 @@ import pandas as pd
 from datetime import datetime
 
 def evaluate_predictions(history_file="ai_trade_history.json"):
-    if not os.path.exists(history_file):
+    from file_store import read_file
+    content = read_file(history_file)
+    if not content:
         print("No AI Trade History found. Run the Catalyst Scanner first.")
         return
 
-    with open(history_file, "r") as f:
-        history = json.load(f)
+    history = json.loads(content)
 
     if not history:
         print("Archive is empty.")
