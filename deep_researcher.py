@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types
 
 from bot_runner import fetch_candles, TARGET_SYMBOLS
+from file_store import read_file, write_file
 
 load_dotenv()
 

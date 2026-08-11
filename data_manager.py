@@ -56,6 +56,9 @@ def fetch_and_store_data(symbol, interval, period="30d"):
                 print(f"⚠️ TWELVEDATA_API_KEY is missing. Cannot fetch {symbol}.")
                 return
                 
+            # Respect TwelveData 8 credits/minute rate limit (wait 8s per request)
+            time.sleep(8)
+                
             td = TDClient(apikey=td_key)
             td_symbol = "XAU/USD" if symbol == "GC=F" else "DXY"
             
