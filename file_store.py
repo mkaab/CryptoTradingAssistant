@@ -15,8 +15,7 @@ def _init_db():
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS system_files (
                 filename VARCHAR(255) PRIMARY KEY,
-                content TEXT,
-                updated_at TIMESTAMP DEFAULT NOW()
+                content TEXT
             )
         """))
 
@@ -68,8 +67,8 @@ def write_file(filename, content, mode="w"):
             content = existing + content
             
         conn.execute(text("""
-            INSERT INTO system_files (filename, content, updated_at) 
-            VALUES (:f, :c, NOW()) 
+            INSERT INTO system_files (filename, content) 
+            VALUES (:f, :c) 
             ON CONFLICT (filename) 
-            DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+            DO UPDATE SET content = EXCLUDED.content
         """), {"f": filename, "c": content})

@@ -66,6 +66,7 @@ def generate_congress_report():
     **Context:** Sits on committee relevant to semiconductors...
     
     If no new trades have been disclosed in the last 7 days, your discord_message should say "No major congressional trades disclosed this week." and trades array should be empty.
+    CRITICAL: YOU MUST ESCAPE ALL DOUBLE QUOTES (") INSIDE YOUR discord_message AND setup_context STRINGS USING A BACKSLASH (\"). IF YOU USE UNESCAPED QUOTES, OUR SYSTEM WILL CRASH WITH A JSON DECODING ERROR!
     """
     
     try:
