@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime
 import os
 import ccxt
-from twelvedata import TDClient
+import yfinance as yf
 import time
 from sqlalchemy import text
 from db import get_engine
@@ -50,34 +50,33 @@ def fetch_and_store_data(symbol, interval, period="30d"):
             df['time'] = pd.to_datetime(df['time'], unit='ms').dt.strftime('%Y-%m-%d %H:%M:%S')
             
         else:
-            # Macro -> TwelveData
-            td_key = os.getenv("TWELVEDATA_API_KEY")
-            if not td_key:
-                print(f"⚠️ TWELVEDATA_API_KEY is missing. Cannot fetch {symbol}.")
+            # Macro -> yfinance
+            yf_intervals = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1h", "4h": "1h", "1d": "1d"}
+            yf_interval = yf_intervals.get(interval, "1h")
+            
+            if limit == 1500:
+                if yf_interval == "1m": period = "7d"
+                elif yf_interval == "5m": period = "60d"
+                elif yf_interval in ["15m", "1h"]: period = "730d"
+                else: period = "max"
+            else:
+                period = "5d"
+                
+            df = yf.download(symbol, period=period, interval=yf_interval, progress=False)
+            if df.empty:
+                print(f"⚠️ No data fetched for {symbol} ({interval}) via yfinance")
                 return
                 
-            # Respect TwelveData 8 credits/minute rate limit (wait 8s per request)
-            time.sleep(8)
-                
-            td = TDClient(apikey=td_key)
-            td_symbol = "XAU/USD" if symbol == "GC=F" else "DXY"
-            
-            # Map intervals for TwelveData
-            td_intervals = {"1m": "1min", "5m": "5min", "15m": "15min", "1h": "1h", "4h": "4h", "1d": "1day"}
-            td_interval = td_intervals.get(interval, "1h")
-            
-            ts = td.time_series(symbol=td_symbol, interval=td_interval, outputsize=1500)
-            df = ts.as_pandas()
-            
-            if df is None or df.empty:
-                print(f"⚠️ No data fetched for {symbol} ({interval})")
-                return
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = [c[0].lower() for c in df.columns]
+            else:
+                df.columns = [c.lower() for c in df.columns]
                 
             df = df.reset_index()
-            df = df.rename(columns={'datetime': 'time'})
-            df['time'] = pd.to_datetime(df['time']).dt.strftime('%Y-%m-%d %H:%M:%S')
+            time_col = 'Datetime' if 'Datetime' in df.columns else 'Date'
+            df = df.rename(columns={time_col: 'time'})
+            df['time'] = pd.to_datetime(df['time'], utc=True).dt.tz_localize(None).dt.strftime('%Y-%m-%d %H:%M:%S')
             
-            # TwelveData doesn't always have volume for index/commodities, ensure it exists
             if 'volume' not in df.columns:
                 df['volume'] = 0.0
                 
