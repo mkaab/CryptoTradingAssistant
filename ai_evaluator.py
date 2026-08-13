@@ -24,6 +24,14 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
     losses = 0
     pending = 0
     db_trades = []
+    
+    from db import get_engine
+    engine = get_engine()
+    try:
+        existing_df = pd.read_sql("SELECT symbol, entry_time FROM ai_backtests", engine)
+        processed_signatures = set(existing_df['symbol'] + "_" + existing_df['entry_time'])
+    except Exception:
+        processed_signatures = set()
 
     for trade in history:
         ticker = trade.get('ticker')
@@ -36,6 +44,11 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
         
         if not all([ticker, entry, tp, sl, date_issued]):
             print(f"⚠️ Skipping '{title}' due to missing structural data.")
+            continue
+            
+        signature = f"{ticker}_{date_issued}"
+        if signature in processed_signatures:
+            # We don't increment pending or totals, it's just completely skipped.
             continue
             
         print(f"Analyzing {ticker} ({direction}) from {date_issued} | Entry: {entry} | TP: {tp} | SL: {sl}")
@@ -159,8 +172,6 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
     print(report)
     
     if db_trades:
-        from db import get_engine
-        engine = get_engine()
         pd.DataFrame(db_trades).to_sql('ai_backtests', engine, if_exists='append', index=False)
         
     return report

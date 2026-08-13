@@ -307,6 +307,12 @@ def deep_research_loop():
             
         # 08:00 AM -> Portfolio Manager takes over, then exit script
         if now.hour == 8 and now.minute < 10:
+            import subprocess
+            print("Running Nightly AI Evaluator...")
+            subprocess.run(["python", "ai_evaluator.py"])
+            print("Generating Market Wizards Analytics...")
+            subprocess.run(["python", "wizards_analyzer.py"])
+            
             compile_morning_strategy()
             print("Night shift complete. Handing off to trading bot.")
             break
