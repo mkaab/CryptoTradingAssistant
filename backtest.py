@@ -172,9 +172,20 @@ def backtest_smc(symbol="GC=F", days=30, interval="5m", htf_interval="4h"):
         risk = abs(trade['entry'] - sl)
         be_trigger = trade['entry'] + risk if trade['direction'] == 'LONG' else trade['entry'] - risk
         
+        max_price = trade['entry']
+        min_price = trade['entry']
+        trade['exit_time'] = None
+        trade['exit_price'] = None
+        trade['pnl_percent'] = 0.0
+        
         for _, candle in future_data.iterrows():
+            if candle['high'] > max_price: max_price = candle['high']
+            if candle['low'] < min_price: min_price = candle['low']
+            
             if trade['direction'] == 'LONG':
                 if candle['low'] <= sl:
+                    trade['exit_time'] = candle['time']
+                    trade['exit_price'] = sl
                     if sl == trade['entry']:
                         trade['status'] = 'BE'
                         be_trades += 1
@@ -182,17 +193,23 @@ def backtest_smc(symbol="GC=F", days=30, interval="5m", htf_interval="4h"):
                         trade['status'] = 'LOSS'
                         losses += 1
                         capital -= risk_per_trade
+                        trade['pnl_percent'] = ((sl - trade['entry'])/trade['entry']) * 100
                     break
                 elif candle['high'] >= trade['tp']:
+                    trade['exit_time'] = candle['time']
+                    trade['exit_price'] = trade['tp']
                     trade['status'] = 'WIN'
                     wins += 1
                     capital += (risk_per_trade * 2.5)
+                    trade['pnl_percent'] = ((trade['tp'] - trade['entry'])/trade['entry']) * 100
                     break
                     
                 if candle['high'] >= be_trigger:
                     sl = trade['entry']
             else:
                 if candle['high'] >= sl:
+                    trade['exit_time'] = candle['time']
+                    trade['exit_price'] = sl
                     if sl == trade['entry']:
                         trade['status'] = 'BE'
                         be_trades += 1
@@ -200,15 +217,27 @@ def backtest_smc(symbol="GC=F", days=30, interval="5m", htf_interval="4h"):
                         trade['status'] = 'LOSS'
                         losses += 1
                         capital -= risk_per_trade
+                        trade['pnl_percent'] = ((trade['entry'] - sl)/trade['entry']) * 100
                     break
                 elif candle['low'] <= trade['tp']:
+                    trade['exit_time'] = candle['time']
+                    trade['exit_price'] = trade['tp']
                     trade['status'] = 'WIN'
                     wins += 1
                     capital += (risk_per_trade * 2.5)
+                    trade['pnl_percent'] = ((trade['entry'] - trade['tp'])/trade['entry']) * 100
                     break
                     
                 if candle['low'] <= be_trigger:
                     sl = trade['entry']
+                    
+        # Calculate MAE / MFE
+        if trade['direction'] == 'LONG':
+            trade['mae_percent'] = ((min_price - trade['entry'])/trade['entry'])*100
+            trade['mfe_percent'] = ((max_price - trade['entry'])/trade['entry'])*100
+        else:
+            trade['mae_percent'] = ((trade['entry'] - max_price)/trade['entry'])*100
+            trade['mfe_percent'] = ((trade['entry'] - min_price)/trade['entry'])*100
                     
     # 4. Save and Print Results
     total_trades = wins + losses
@@ -232,6 +261,28 @@ def backtest_smc(symbol="GC=F", days=30, interval="5m", htf_interval="4h"):
     write_file("backtest_results.md", report, mode="a")
         
     print(report)
+    
+    # Write to DB
+    from db import get_engine
+    engine = get_engine()
+    db_trades = []
+    for t in trades:
+        if t['status'] != 'OPEN':
+            db_trades.append({
+                'strategy': 'SMC',
+                'symbol': symbol,
+                'direction': t['direction'],
+                'entry_time': t['time'],
+                'entry_price': t['entry'],
+                'exit_time': t['exit_time'],
+                'exit_price': t['exit_price'],
+                'pnl_percent': t['pnl_percent'],
+                'mae_percent': t['mae_percent'],
+                'mfe_percent': t['mfe_percent'],
+                'status': t['status']
+            })
+    if db_trades:
+        pd.DataFrame(db_trades).to_sql('smc_backtests', engine, if_exists='append', index=False)
 
 import ta
 

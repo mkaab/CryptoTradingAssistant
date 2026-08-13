@@ -27,6 +27,43 @@ def init_db():
                     PRIMARY KEY (symbol, time)
                 )
             '''))
+        
+        from db import is_postgres
+        pk_type = "SERIAL PRIMARY KEY" if is_postgres() else "INTEGER PRIMARY KEY AUTOINCREMENT"
+            
+        conn.execute(text(f'''
+            CREATE TABLE IF NOT EXISTS smc_backtests (
+                trade_id {pk_type},
+                strategy VARCHAR(50),
+                symbol VARCHAR(50),
+                direction VARCHAR(10),
+                entry_time TIMESTAMP,
+                entry_price REAL,
+                exit_time TIMESTAMP,
+                exit_price REAL,
+                pnl_percent REAL,
+                mae_percent REAL,
+                mfe_percent REAL,
+                status VARCHAR(20)
+            )
+        '''))
+        
+        conn.execute(text(f'''
+            CREATE TABLE IF NOT EXISTS ai_backtests (
+                trade_id {pk_type},
+                strategy VARCHAR(50),
+                symbol VARCHAR(50),
+                direction VARCHAR(10),
+                entry_time TIMESTAMP,
+                entry_price REAL,
+                exit_time TIMESTAMP,
+                exit_price REAL,
+                pnl_percent REAL,
+                mae_percent REAL,
+                mfe_percent REAL,
+                status VARCHAR(20)
+            )
+        '''))
 
 def fetch_and_store_data(symbol, interval, period="30d"):
     """

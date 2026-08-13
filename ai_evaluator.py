@@ -23,6 +23,7 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
     wins = 0
     losses = 0
     pending = 0
+    db_trades = []
 
     for trade in history:
         ticker = trade.get('ticker')
@@ -59,37 +60,84 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
 
         # 2. Simulate the Trade (Aggressive grading: assumes entry was filled immediately)
         trade_status = "PENDING"
+        max_price = entry
+        min_price = entry
+        exit_time = None
+        exit_price = None
+        pnl_percent = 0.0
         
         for index, row in data.iterrows():
             high = row['high']
             low = row['low']
+            if high > max_price: max_price = high
+            if low < min_price: min_price = low
             
             # Since this is daily data, we check both SL and TP
             if direction == "LONG":
                 if low <= sl:
                     trade_status = "LOSS (SL Hit)"
+                    exit_time = index
+                    exit_price = sl
+                    pnl_percent = ((sl - entry)/entry)*100
                     break
                 elif high >= tp:
                     trade_status = "WIN (TP Hit)"
+                    exit_time = index
+                    exit_price = tp
+                    pnl_percent = ((tp - entry)/entry)*100
                     break
             else: # SHORT
                 if high >= sl:
                     trade_status = "LOSS (SL Hit)"
+                    exit_time = index
+                    exit_price = sl
+                    pnl_percent = ((entry - sl)/entry)*100
                     break
                 elif low <= tp:
                     trade_status = "WIN (TP Hit)"
+                    exit_time = index
+                    exit_price = tp
+                    pnl_percent = ((entry - tp)/entry)*100
                     break
                     
+        # Calculate MAE / MFE
+        mae_percent = 0.0
+        mfe_percent = 0.0
+        if direction == 'LONG':
+            mae_percent = ((min_price - entry)/entry)*100
+            mfe_percent = ((max_price - entry)/entry)*100
+        else:
+            mae_percent = ((entry - max_price)/entry)*100
+            mfe_percent = ((entry - min_price)/entry)*100
+            
         print(f"  -> Result: {trade_status}")
         
         if "WIN" in trade_status:
             wins += 1
             total_trades += 1
+            status = 'WIN'
         elif "LOSS" in trade_status:
             losses += 1
             total_trades += 1
+            status = 'LOSS'
         else:
             pending += 1
+            status = 'OPEN'
+            
+        if status != 'OPEN':
+            db_trades.append({
+                'strategy': 'AI_SWING',
+                'symbol': ticker,
+                'direction': direction,
+                'entry_time': date_issued,
+                'entry_price': entry,
+                'exit_time': exit_time,
+                'exit_price': exit_price,
+                'pnl_percent': pnl_percent,
+                'mae_percent': mae_percent,
+                'mfe_percent': mfe_percent,
+                'status': status
+            })
 
     report = "📈 **AI CATALYST PREDICTION PERFORMANCE** 📈\n"
     report += f"Total Completed Trades : {total_trades}\n"
@@ -109,6 +157,12 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
         report += "\nNo trades have completed yet.\n"
         
     print(report)
+    
+    if db_trades:
+        from db import get_engine
+        engine = get_engine()
+        pd.DataFrame(db_trades).to_sql('ai_backtests', engine, if_exists='append', index=False)
+        
     return report
 
 if __name__ == "__main__":
