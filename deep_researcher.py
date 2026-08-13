@@ -308,6 +308,28 @@ def deep_research_loop():
         # 08:00 AM -> Portfolio Manager takes over, then exit script
         if now.hour == 8 and now.minute < 10:
             import subprocess
+            import json
+            from file_store import read_file, write_file
+            
+            print("Checking Backtest Queue...")
+            queue_content = read_file("backtest_queue.json")
+            if queue_content:
+                queue = json.loads(queue_content)
+                for test in queue:
+                    print(f"Executing Scheduled Backtest: {test.get('hypothesis', 'Unknown')}")
+                    # Build command
+                    cmd = ["python", "backtest.py"]
+                    if "strategy" in test: cmd.extend(["--strategy", str(test['strategy'])])
+                    if "symbol" in test: cmd.extend(["--symbol", str(test['symbol'])])
+                    if "days" in test: cmd.extend(["--days", str(test['days'])])
+                    if "interval" in test: cmd.extend(["--interval", str(test['interval'])])
+                    if "htf_interval" in test: cmd.extend(["--htf_interval", str(test['htf_interval'])])
+                    
+                    subprocess.run(cmd)
+                
+                # Clear queue
+                write_file("backtest_queue.json", "[]", mode="w")
+                
             print("Running Nightly AI Evaluator...")
             subprocess.run(["python", "ai_evaluator.py"])
             print("Generating Market Wizards Analytics...")

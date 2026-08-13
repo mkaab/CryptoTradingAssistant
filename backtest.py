@@ -376,24 +376,40 @@ def backtest_rapid_fire(symbol="GC=F", days=30, interval="5m"):
     print(report)
 
 if __name__ == "__main__":
-    # Clear the results file first
+    import argparse
+    parser = argparse.ArgumentParser(description="CryptoTradingAssistant Backtest Engine")
+    parser.add_argument("--strategy", type=str, help="Strategy to run: 'SMC' or 'Rapid Fire'")
+    parser.add_argument("--symbol", type=str, help="Ticker symbol to test")
+    parser.add_argument("--days", type=int, help="Number of days to look back")
+    parser.add_argument("--interval", type=str, help="Timeframe interval (e.g. 5m, 15m)")
+    parser.add_argument("--htf_interval", type=str, default="4h", help="Higher timeframe interval for bias (SMC only)")
+    parser.add_argument("--grid", action="store_true", help="Run the default hardcoded Grid Search")
+    args = parser.parse_args()
+
     from file_store import write_file
-    write_file("backtest_results.md", "# MULTI-TIMEFRAME GRID SEARCH RESULTS (7D & 30D)\n\n", mode="w")
-        
-    print("Starting Grid Search...")
-    
-    # 1. SMC Grid Search
-    # 5m -> 4h bias | 15m -> 4h bias | 1h -> 1d bias | 4h -> 1wk bias
-    smc_matrix = [("5m", "4h"), ("15m", "4h"), ("1h", "1d")] # Dropping 4h/1wk to save time
-    
-    for days_lookback in [7, 30]:
-        for interval, htf in smc_matrix:
-            backtest_smc(symbol="BTC-USD", days=days_lookback, interval=interval, htf_interval=htf)
+
+    if args.grid:
+        write_file("backtest_results.md", "# MULTI-TIMEFRAME GRID SEARCH RESULTS (7D & 30D)\n\n", mode="w")
+        print("Starting Grid Search...")
+        smc_matrix = [("5m", "4h"), ("15m", "4h"), ("1h", "1d")]
+        for days_lookback in [7, 30]:
+            for interval, htf in smc_matrix:
+                backtest_smc(symbol="BTC-USD", days=days_lookback, interval=interval, htf_interval=htf)
+            rf_intervals = ["1m", "5m", "15m"]
+            for interval in rf_intervals:
+                if interval == "1m" and days_lookback == 30:
+                    continue
+                backtest_rapid_fire(symbol="BTC-USD", days=days_lookback, interval=interval)
+    else:
+        if not args.strategy or not args.symbol or not args.days or not args.interval:
+            print("Missing arguments. Provide --strategy, --symbol, --days, --interval or use --grid")
+            exit(1)
             
-        # 2. Rapid Fire Grid Search
-        rf_intervals = ["1m", "5m", "15m"]
-        for interval in rf_intervals:
-            # 1m data is capped at 7 days on Yahoo anyway, so no point querying 30 days
-            if interval == "1m" and days_lookback == 30:
-                continue
-            backtest_rapid_fire(symbol="BTC-USD", days=days_lookback, interval=interval)
+        print(f"Executing scheduled backtest: {args.strategy} on {args.symbol} for {args.days} days ({args.interval})")
+        # Initialize the file if it doesn't exist, but append otherwise
+        if args.strategy.upper() == "SMC":
+            backtest_smc(symbol=args.symbol, days=args.days, interval=args.interval, htf_interval=args.htf_interval)
+        elif args.strategy.upper() in ["RAPID FIRE", "RAPID_FIRE", "RAPIDFIRE"]:
+            backtest_rapid_fire(symbol=args.symbol, days=args.days, interval=args.interval)
+        else:
+            print(f"Unknown strategy: {args.strategy}")

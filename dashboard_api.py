@@ -1,6 +1,7 @@
 import os
 import json
-from flask import Flask, jsonify, send_from_directory
+import uuid
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 from sqlalchemy import text
@@ -72,6 +73,80 @@ def get_system_status():
         "database_synced": True,
         "bot_active": True # In a real scenario, we could check the bot_runner process
     })
+
+# --- AI Hypothesis Backtest Endpoints ---
+
+@app.route('/api/backtest_suggestions', methods=['GET'])
+def get_backtest_suggestions():
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client()
+        
+        from file_store import read_file
+        brain = read_file(MASTER_BRAIN_FILE, default_content="No brain data.")
+        
+        prompt = (
+            "You are a Senior Quantitative Analyst. Look at the current market context:\n"
+            f"{brain[-2000:]}\n\n"
+            "Propose exactly 3 unique hypotheses for historical strategy backtests.\n"
+            "Strategies available: 'SMC', 'Rapid Fire'.\n"
+            "Symbols available: BTC-USD, ETH-USD, SOL-USD, GC=F (Gold).\n"
+            "Intervals available: 1m, 5m, 15m, 1h. (SMC also needs htf_interval: 4h or 1d).\n"
+            "Output MUST be strict JSON in this exact format:\n"
+            "[\n"
+            "  {\n"
+            '    "hypothesis": "Test SMC on SOL 5m due to volatility spike",\n'
+            '    "reasoning_summary": "SOL is showing 12% excess volatility. SMC usually captures deep pullbacks well in this regime.",\n'
+            '    "strategy": "SMC",\n'
+            '    "symbol": "SOL-USD",\n'
+            '    "days": 7,\n'
+            '    "interval": "5m",\n'
+            '    "htf_interval": "4h"\n'
+            "  }\n"
+            "]\n"
+        )
+        
+        response = client.models.generate_content(
+            model='gemini-2.5-flash', 
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json")
+        )
+        
+        suggestions = json.loads(response.text)
+        return jsonify(suggestions)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/schedule_backtest', methods=['POST'])
+def schedule_backtest():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        from file_store import read_file, write_file
+        queue_content = read_file("backtest_queue.json")
+        queue = json.loads(queue_content) if queue_content else []
+        
+        data["id"] = str(uuid.uuid4())
+        data["status"] = "PENDING"
+        queue.append(data)
+        
+        write_file("backtest_queue.json", json.dumps(queue, indent=4))
+        return jsonify({"success": True, "message": "Backtest scheduled for Night Shift."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/backtest_queue', methods=['GET'])
+def get_backtest_queue():
+    try:
+        from file_store import read_file
+        queue_content = read_file("backtest_queue.json")
+        queue = json.loads(queue_content) if queue_content else []
+        return jsonify(queue)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Serve React App
 @app.route('/', defaults={'path': ''})
