@@ -71,12 +71,12 @@ def generate_congress_report():
     
     try:
         print("Scouring the web for Congressional trades...")
-        response = client.models.generate_content(
+        from llm_utils import generate_with_retry
+        response = generate_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[{'google_search': {}}]
-            )
+            config=types.GenerateContentConfig(tools=[{"google_search": {}}], temperature=0.3)
         )
         
         if not response.text:

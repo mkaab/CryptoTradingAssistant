@@ -90,10 +90,13 @@ def generate_catalyst_report():
 
     try:
         print("Scouring the web for catalysts and generating structured data...")
-        response = client.models.generate_content(
+        from llm_utils import generate_with_retry
+        response = generate_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
+                response_mime_type="application/json",
                 tools=[{'google_search': {}}]
             )
         )

@@ -9,6 +9,7 @@ from google.genai import types
 
 from bot_runner import fetch_candles, TARGET_SYMBOLS
 from file_store import read_file, write_file
+from llm_utils import generate_with_retry
 
 load_dotenv()
 
@@ -80,7 +81,8 @@ def run_macro_agent():
     )
     
     try:
-        response = client.models.generate_content(
+        response = generate_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(tools=[{"google_search": {}}], temperature=0.4)
@@ -136,7 +138,8 @@ def run_cio_agent():
     )
     
     try:
-        response = client.models.generate_content(
+        response = generate_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt
         )
@@ -169,7 +172,7 @@ def run_quant_agent():
     )
     
     try:
-        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt, config=types.GenerateContentConfig(temperature=0.3))
+        response = generate_with_retry(client=client, model='gemini-2.5-flash', contents=prompt, config=types.GenerateContentConfig(temperature=0.3))
         output = response.text.strip()
         if output and "NO_UPDATE" not in output:
             append_master_brain("Technical Quant", output)
@@ -193,7 +196,7 @@ def run_risk_agent():
     )
     
     try:
-        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt, config=types.GenerateContentConfig(temperature=0.3))
+        response = generate_with_retry(client=client, model='gemini-2.5-flash', contents=prompt, config=types.GenerateContentConfig(temperature=0.3))
         output = response.text.strip()
         if output and "NO_UPDATE" not in output:
             append_master_brain("Risk Manager", output)
@@ -221,7 +224,7 @@ def compact_master_brain():
     )
     
     try:
-        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        response = generate_with_retry(client=client, model='gemini-2.5-flash', contents=prompt)
         compacted = "# Master Trading Brain (Distilled)\n\n" + response.text.strip()
         write_file(MASTER_BRAIN_FILE, compacted)
         print("✅ Master Brain successfully compacted and noise removed.")
@@ -253,7 +256,7 @@ def compile_morning_strategy():
     )
     
     try:
-        response = client.models.generate_content(model='gemini-2.5-flash', contents=pm_prompt)
+        response = generate_with_retry(client=client, model='gemini-2.5-flash', contents=pm_prompt)
         cleaned_json = response.text.replace('```json', '').replace('```', '').strip()
         cleaned = json.loads(cleaned_json)
         write_file(CONFIG_FILE, json.dumps(cleaned, indent=4))
