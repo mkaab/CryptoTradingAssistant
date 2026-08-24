@@ -96,7 +96,6 @@ def generate_catalyst_report():
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                response_mime_type="application/json",
                 tools=[{'google_search': {}}]
             )
         )
