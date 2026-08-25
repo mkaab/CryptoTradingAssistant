@@ -53,9 +53,17 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
             
         print(f"Analyzing {ticker} ({direction}) from {date_issued} | Entry: {entry} | TP: {tp} | SL: {sl}")
         
-        # 1. Fetch Price action since the prediction date
+        # Clean ticker for yfinance compatibility
+        yf_ticker = ticker.upper().strip()
+        if yf_ticker in ["XAU/USD", "XAUUSD"]:
+            yf_ticker = "GC=F"
+        elif yf_ticker == "EUR/USD":
+            yf_ticker = "EURUSD=X"
+        elif yf_ticker.endswith("-USDT"):
+            yf_ticker = yf_ticker.replace("-USDT", "-USD")
+            
         try:
-            data = yf.download(ticker, start=date_issued, progress=False)
+            data = yf.download(yf_ticker, start=date_issued, progress=False)
         except Exception:
             print(f"  -> ❌ Failed to download historical data for {ticker}")
             continue
