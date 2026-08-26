@@ -18,43 +18,47 @@ def generate_catalyst_report():
     except Exception as e:
         return f"⚠️ Failed to initialize Gemini Client: {e}"
         
-    # --- GET LIVE CONTEXT TO PREVENT HALLUCINATIONS ---
-    live_prices = "CURRENT SPOT PRICES:\n"
+    # --- GET LIVE CONTEXT (HTF Candlesticks) ---
+    live_prices = "CURRENT 1D CANDLESTICKS (Last 5 Days):\n"
     try:
         from data_manager import get_historical_data
-        for symbol in ["BTC-USD", "ETH-USD", "SOL-USD"]:
-            df = get_historical_data(symbol, "1d", 3)
+        for symbol in ["BTC-USD", "ETH-USD", "SOL-USD", "GC=F"]: # Included GC=F (Gold)
+            df = get_historical_data(symbol, "1d", 5)
             if not df.empty:
-                current_price = df.iloc[-1]['close']
-                live_prices += f"{symbol}: ${current_price:.2f}\n"
+                live_prices += f"\n{symbol}:\n"
+                for index, row in df.iterrows():
+                    date_str = row['time'].strftime('%Y-%m-%d') if hasattr(row['time'], 'strftime') else row['time']
+                    live_prices += f"  {date_str} - O: {row['open']:.2f}, H: {row['high']:.2f}, L: {row['low']:.2f}, C: {row['close']:.2f}\n"
     except Exception as e:
-        live_prices += "Error fetching live prices.\n"
+        live_prices += f"Error fetching live prices: {e}\n"
 
     # --- GET ACTIVE POSITIONS FOR UPDATES ---
     active_positions = "ACTIVE SWING TRADES (PAST PREDICTIONS):\n"
     try:
-        from file_store import read_file
-        content = read_file("ai_trade_history.json")
-        if content:
-            history = json.loads(content)
-            # Just grab the last 5 trades so we don't overwhelm the prompt
-            recent_trades = history[-5:] if len(history) > 5 else history
-            active_positions += json.dumps(recent_trades, indent=2)
+        from db import get_engine
+        import pandas as pd
+        engine = get_engine()
+        active_df = pd.read_sql("SELECT * FROM active_ai_trades", engine)
+        if not active_df.empty:
+            active_positions += active_df.to_json(orient='records', indent=2)
         else:
             active_positions += "No active positions yet."
     except Exception:
-        active_positions += "Error reading history."
+        active_positions += "Error reading history from database or table is empty."
 
     prompt = f"""
     You are an elite Hedge Fund Swing Trader. 
     Search the web for major macro, forex, gold (XAUUSD), and crypto catalysts happening in the next 7 to 30 days.
     
     {live_prices}
-    DO NOT hallucinate prices. If you are predicting Entry/TP/SL for BTC, ETH, or SOL, base your math EXACTLY on the current spot prices provided above!
+    HTF BIAS CHECK: Analyze the Daily (1D) Candlesticks provided above. Do NOT recommend a LONG if the asset is heavily overextended (e.g., 3-4 consecutive green days making new highs). Establish your Higher Timeframe bias using these candlestick patterns before determining your entry price. DO NOT hallucinate prices. Base your math EXACTLY on the current spot prices provided above!
 
     {active_positions}
-    You must also act as a Position Manager. Review the ACTIVE SWING TRADES above. In your discord_message, add a section called "**Updates on Active Trades**". 
-    If a trade from yesterday (or a 3-month long position) needs its Stop Loss raised to break-even, or partial profits taken due to shifting market conditions, state it clearly!
+    CRITICAL CONSISTENCY RULES (Position Management):
+    1. DO NOT issue a new trade for a catalyst/asset if we already have an active trade for it!
+    2. DO NOT flip-flop your bias (e.g. going LONG today when you went SHORT yesterday on the same event).
+    3. If new news contradicts your previous thesis on an active trade, write an update in the "**Updates on Active Trades**" section suggesting we close the old position, rather than issuing a conflicting new trade.
+    
     Look specifically for:
     - Major Central Bank Rate Decisions or Fed policy shifts (for Forex/Gold)
     - Geopolitical escalations or supply chain shocks (for Gold)
@@ -62,9 +66,8 @@ def generate_catalyst_report():
     - SEC Rulings / ETF Approvals or Denials
     - Major Mainnet Launches, Airdrops, or Protocol Upgrades
 
-    Identify 1 to 3 highly actionable swing trade setups based on the news you find.
-    
-    CRITICAL DEDUPLICATION RULE: DO NOT output a trade setup if a highly similar setup for the exact same catalyst already exists in the ACTIVE SWING TRADES history above. Only output GENUINELY NEW catalysts. If you only find old news, return an empty trades array.
+    Identify 1 to 3 highly actionable swing trade setups based on the news you find. If you only find old news, return an empty trades array.
+
     
     You MUST output valid JSON only. Your JSON must match this exact schema:
     {{
@@ -129,30 +132,25 @@ def generate_catalyst_report():
         return f"⚠️ Catalyst Scanner failed to generate report: {e}"
 
 def save_predictions_to_archive(trades):
-    # Save to history
-    archive_file = "ai_trade_history.json"
-    try:
-        from file_store import read_file, write_file
-        content = read_file(archive_file)
-        if content:
-            history = json.loads(content)
-        else:
-            history = []
-    except Exception:
-        history = []
+    if not trades:
+        return
         
     # Append timestamp to each trade
     today = datetime.now().strftime("%Y-%m-%d")
     for trade in trades:
         trade['date_issued'] = today
-        history.append(trade)
+        # Ensure status is OPEN
+        trade['status'] = 'OPEN'
     
     try:
-        write_file(archive_file, json.dumps(history, indent=4))
+        from db import get_engine
+        import pandas as pd
+        engine = get_engine()
+        df = pd.DataFrame(trades)
+        df.to_sql('active_ai_trades', engine, if_exists='append', index=False)
+        print(f"✅ Saved {len(trades)} structured predictions to 'active_ai_trades' Postgres table.")
     except Exception as e:
-        print(f"Error saving history: {e}")
-        
-    print(f"Saved {len(trades)} structured predictions to {archive_file} for future backtesting.")
+        print(f"❌ Error saving to Postgres active_ai_trades: {e}")
 
 if __name__ == "__main__":
     print("Testing Catalyst Scanner...")

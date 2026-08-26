@@ -4,19 +4,22 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-def evaluate_predictions(history_file="ai_trade_history.json"):
-    from file_store import read_file
-    content = read_file(history_file)
-    if not content:
-        print("No AI Trade History found. Run the Catalyst Scanner first.")
+def evaluate_predictions():
+    from db import get_engine
+    import sqlalchemy as sa
+    engine = get_engine()
+    
+    try:
+        active_df = pd.read_sql("SELECT * FROM active_ai_trades", engine)
+    except Exception:
+        print("No active_ai_trades table found in database or it is empty.")
         return
 
-    history = json.loads(content)
-
-    if not history:
-        print("Archive is empty.")
+    if active_df.empty:
+        print("Archive is empty. No active swing trades.")
         return
 
+    history = active_df.to_dict('records')
     print(f"📊 Evaluating {len(history)} AI Swing Trade Predictions...\n")
     
     total_trades = 0
@@ -24,9 +27,8 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
     losses = 0
     pending = 0
     db_trades = []
-    
-    from db import get_engine
-    engine = get_engine()
+    completed_signatures = []
+
     try:
         existing_df = pd.read_sql("SELECT symbol, entry_time FROM ai_backtests", engine)
         processed_signatures = set(existing_df['symbol'] + "_" + existing_df['entry_time'])
@@ -34,13 +36,16 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
         processed_signatures = set()
 
     for trade in history:
-        ticker = trade.get('ticker')
+        ticker = trade.get('symbol')
+        if not ticker:
+            ticker = trade.get('ticker')
         direction = trade.get('direction', 'LONG').upper()
         entry = trade.get('entry_price')
         tp = trade.get('take_profit')
         sl = trade.get('stop_loss')
-        date_issued = trade.get('date_issued')
+        date_issued = trade.get('date_issued') or trade.get('entry_time')
         title = trade.get('catalyst_title', 'Unknown Catalyst')
+        context = trade.get('setup_context', 'No context provided.')
         
         if not all([ticker, entry, tp, sl, date_issued]):
             print(f"⚠️ Skipping '{title}' due to missing structural data.")
@@ -157,8 +162,11 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
                 'pnl_percent': pnl_percent,
                 'mae_percent': mae_percent,
                 'mfe_percent': mfe_percent,
-                'status': status
+                'status': status,
+                'catalyst_title': title,
+                'setup_context': context
             })
+            completed_signatures.append(f"'{ticker}' AND date_issued = '{date_issued}'")
 
     report = "📈 **AI CATALYST PREDICTION PERFORMANCE** 📈\n"
     report += f"Total Completed Trades : {total_trades}\n"
@@ -182,6 +190,15 @@ def evaluate_predictions(history_file="ai_trade_history.json"):
     if db_trades:
         pd.DataFrame(db_trades).to_sql('ai_backtests', engine, if_exists='append', index=False)
         
+        # Remove completed trades from active_ai_trades
+        try:
+            with engine.begin() as conn:
+                for sig in completed_signatures:
+                    conn.execute(sa.text(f"DELETE FROM active_ai_trades WHERE ticker = {sig}"))
+            print(f"✅ Moved {len(db_trades)} completed trades to ai_backtests and deleted from active_ai_trades.")
+        except Exception as e:
+            print(f"❌ Failed to delete completed trades from active_ai_trades: {e}")
+            
     return report
 
 if __name__ == "__main__":

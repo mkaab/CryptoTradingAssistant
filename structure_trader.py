@@ -32,6 +32,8 @@ def fetch_candles(symbol, timeframe):
     if "-USDT" in symbol:
         if timeframe == '4H':
             interval = '4hour'
+        elif timeframe == '1H':
+            interval = '1hour'
         elif timeframe == '5m':
             interval = '5min'
         else:
@@ -55,6 +57,8 @@ def fetch_candles(symbol, timeframe):
             ticker = yf.Ticker(symbol)
             if timeframe == '4H':
                 df = ticker.history(interval='1h', period='1mo')
+            elif timeframe == '1H':
+                df = ticker.history(interval='1h', period='2wk')
             else:
                 df = ticker.history(interval='5m', period='5d')
                 
@@ -237,22 +241,33 @@ def main():
         for symbol in TARGET_SYMBOLS:
             # Fetch Data
             df_4h = fetch_candles(symbol, '4H')
+            df_1h = fetch_candles(symbol, '1H')
             df_5m = fetch_candles(symbol, '5m')
             
-            if df_4h.empty or df_5m.empty:
+            if df_4h.empty or df_1h.empty or df_5m.empty:
+                st.warning(f"Failed to fetch data for {symbol}")
                 continue
+                
+            bias_4h = get_htf_bias(df_4h)
+            bias_1h = get_htf_bias(df_1h)
+            
+            # 3-Timeframe Alignment
+            if "Bullish" in bias_4h and "Bearish" not in bias_1h:
+                bias = "🟢 Bullish (Aligned)"
+            elif "Bearish" in bias_4h and "Bullish" not in bias_1h:
+                bias = "🔴 Bearish (Aligned)"
+            else:
+                bias = "⚪ Neutral / Unaligned"
                 
             current_price = df_5m.iloc[-1]['close']
             
-            # Run SMC Logic
-            bias = get_htf_bias(df_4h)
             status, has_sweep, has_bos = check_ltf_setup(df_5m, bias)
             
             # Append Results
             results.append({
                 "Asset": symbol.replace('-USDT', ''),
                 "Price": f"${current_price:,.2f}",
-                "HTF Bias (4H)": bias,
+                "HTF Bias (4H->1H)": bias,
                 "Sweep Detected (5m)": "✅ Yes" if has_sweep else "❌ No",
                 "BoS Detected (5m)": "✅ Yes" if has_bos else "❌ No",
                 "Action": status

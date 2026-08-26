@@ -68,6 +68,8 @@ def fetch_candles(symbol, timeframe):
     if "-USDT" in symbol:
         if timeframe == '4H':
             interval = '4hour'
+        elif timeframe == '1H':
+            interval = '1hour'
         elif timeframe == '5m':
             interval = '5min'
         else:
@@ -89,8 +91,15 @@ def fetch_candles(symbol, timeframe):
             print(f"Skipping {symbol} - No TWELVEDATA_API_KEY found.")
             return pd.DataFrame()
             
-        td_interval = '4h' if timeframe == '4H' else '5min'
-        outputsize = 30 if timeframe == '4H' else 100
+        if timeframe == '4H':
+            td_interval = '4h'
+            outputsize = 30
+        elif timeframe == '1H':
+            td_interval = '1h'
+            outputsize = 50
+        else:
+            td_interval = '5min'
+            outputsize = 100
         
         url = f"https://api.twelvedata.com/time_series?symbol={symbol}&interval={td_interval}&outputsize={outputsize}&apikey={TWELVEDATA_API_KEY}"
         data = make_request(url)
@@ -246,13 +255,22 @@ def run_bot(risk_modifier="NORMAL", sentiment=None):
     
     for symbol in TARGET_SYMBOLS:
         df_4h = fetch_candles(symbol, '4H')
+        df_1h = fetch_candles(symbol, '1H')
         df_5m = fetch_candles(symbol, '5m')
         
-        if df_4h.empty or df_5m.empty:
-            print(f"Failed to fetch data for {symbol}")
-            continue
+        if df_4h.empty or df_1h.empty or df_5m.empty: continue
+        
+        bias_4h = get_htf_bias(df_4h)
+        bias_1h = get_htf_bias(df_1h)
+        
+        # 3-Timeframe Alignment
+        if bias_4h == "Bullish" and bias_1h != "Bearish":
+            bias = "Bullish"
+        elif bias_4h == "Bearish" and bias_1h != "Bullish":
+            bias = "Bearish"
+        else:
+            bias = "Neutral"
             
-        bias = get_htf_bias(df_4h)
         setup = check_ltf_setup(df_5m, bias, risk_modifier, sentiment)
         
         if setup:

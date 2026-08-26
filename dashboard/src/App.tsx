@@ -42,6 +42,7 @@ function App() {
   const [suggestions, setSuggestions] = useState<BacktestSuggestion[]>([]);
   const [queue, setQueue] = useState<BacktestQueueItem[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [journal, setJournal] = useState<any[]>([]);
 
   // In production, we assume the API is hosted on the same origin. 
   // For local Vite dev, we'd need to proxy, but for simplicity here we just use relative path 
@@ -51,12 +52,13 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [brainRes, histRes, statRes, backRes, queueRes] = await Promise.all([
+        const [brainRes, histRes, statRes, backRes, queueRes, journalRes] = await Promise.all([
           fetch(`${API_BASE}/api/master_brain`).catch(() => null),
           fetch(`${API_BASE}/api/trade_history`).catch(() => null),
           fetch(`${API_BASE}/api/system_status`).catch(() => null),
           fetch(`${API_BASE}/api/backtest_results`).catch(() => null),
           fetch(`${API_BASE}/api/backtest_queue`).catch(() => null),
+          fetch(`${API_BASE}/api/trading_journal`).catch(() => null),
         ]);
 
         if (brainRes?.ok) {
@@ -82,6 +84,11 @@ function App() {
         if (queueRes?.ok) {
           const data = await queueRes.json();
           setQueue(data);
+        }
+
+        if (journalRes?.ok) {
+          const data = await journalRes.json();
+          setJournal(data);
         }
       } catch (err) {
         console.error('Failed to fetch data', err);
@@ -306,6 +313,40 @@ function App() {
             ))
           ) : (
             <div style={{ color: '#a0a0a0', fontStyle: 'italic' }}>No predictions recorded yet.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ gridColumn: 'span 3', marginTop: '20px' }}>
+        <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0 }}>
+          <Activity size={24} color="#a0a0a0" />
+          AI Trading Journal (Completed Trades)
+        </h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
+          {journal.length > 0 ? (
+            journal.map((trade, idx) => (
+              <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <strong style={{ fontSize: '1.1rem' }}>{trade.symbol} - {trade.direction}</strong>
+                  <span style={{ 
+                    color: trade.status.includes('WIN') ? '#10b981' : '#ef4444', 
+                    fontWeight: 'bold', background: trade.status.includes('WIN') ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    padding: '4px 8px', borderRadius: '4px'
+                  }}>
+                    {trade.status} ({trade.pnl_percent?.toFixed(2)}%)
+                  </span>
+                </div>
+                <div style={{ color: '#a0a0a0', fontSize: '0.9rem', marginBottom: '12px', fontStyle: 'italic' }}>
+                  {trade.catalyst_title} | Closed: {trade.exit_time || 'N/A'}
+                </div>
+                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '4px', fontSize: '0.85rem', lineHeight: '1.5', color: '#e5e7eb' }}>
+                  <strong>Setup Context / AI Reasoning:</strong><br />
+                  {trade.setup_context}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ color: '#a0a0a0', fontStyle: 'italic' }}>No completed trades recorded in the journal yet.</div>
           )}
         </div>
       </div>

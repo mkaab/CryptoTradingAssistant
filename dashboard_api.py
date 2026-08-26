@@ -38,14 +38,25 @@ def get_backtest_results():
 @app.route('/api/trade_history', methods=['GET'])
 def get_trade_history():
     try:
-        from file_store import read_file
-        content = read_file(HISTORY_FILE)
-        if content:
-            history = json.loads(content)
-            return jsonify(history)
-        return jsonify([])
+        import pandas as pd
+        engine = get_engine()
+        df = pd.read_sql("SELECT * FROM active_ai_trades", engine)
+        return jsonify(df.to_dict('records'))
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error fetching trade history: {e}")
+        return jsonify([])
+
+@app.route('/api/trading_journal', methods=['GET'])
+def get_trading_journal():
+    try:
+        import pandas as pd
+        engine = get_engine()
+        # Fetch completed trades with context
+        df = pd.read_sql("SELECT symbol, direction, entry_time, pnl_percent, status, catalyst_title, setup_context FROM ai_backtests ORDER BY entry_time DESC", engine)
+        return jsonify(df.to_dict('records'))
+    except Exception as e:
+        print(f"Error fetching trading journal: {e}")
+        return jsonify([])
 
 @app.route('/api/market_data/<symbol>/<interval>', methods=['GET'])
 def get_market_data(symbol, interval):
