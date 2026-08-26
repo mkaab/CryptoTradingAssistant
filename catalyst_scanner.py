@@ -112,7 +112,7 @@ def generate_catalyst_report():
             raw_text = raw_text[:-3]
             
         try:
-            data = json.loads(raw_text.strip())
+            data = json.loads(raw_text.strip(), strict=False)
         except json.JSONDecodeError as e:
             print(f"❌ Failed to parse JSON from Gemini. Raw text was:\n{raw_text}")
             raise e
