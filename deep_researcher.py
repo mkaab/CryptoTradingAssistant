@@ -287,7 +287,7 @@ def deep_research_loop():
     update_all_data()
     
     # 2. Run the Multi-Timeframe Grid Search
-    subprocess.run(["python", "backtest.py"])
+    subprocess.run(["python", "backtest.py", "--grid"])
     
     # 3. AI Evaluator (Self-Feedback Loop)
     print("Grading past AI predictions...")

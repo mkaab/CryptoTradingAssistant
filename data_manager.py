@@ -70,13 +70,11 @@ def fetch_and_store_data(symbol, interval, period="30d"):
     Downloads data from ccxt (Crypto) or TwelveData (Macro) and upserts it.
     """
     try:
+        limit = 1500
         if symbol in ["BTC-USD", "ETH-USD", "SOL-USD"]:
             # Crypto -> CCXT (Kucoin)
             exchange = ccxt.kucoin({'enableRateLimit': True})
             ccxt_symbol = symbol.replace("-USD", "/USDT")
-            
-            # Map interval to KuCoin
-            limit = 1500
             
             ohlcv = exchange.fetch_ohlcv(ccxt_symbol, interval, limit=limit)
             if not ohlcv:
@@ -91,13 +89,11 @@ def fetch_and_store_data(symbol, interval, period="30d"):
             yf_intervals = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1h", "4h": "1h", "1d": "1d"}
             yf_interval = yf_intervals.get(interval, "1h")
             
-            if limit == 1500:
+            if period == "30d" or period is None:
                 if yf_interval == "1m": period = "7d"
                 elif yf_interval == "5m": period = "60d"
                 elif yf_interval in ["15m", "1h"]: period = "730d"
                 else: period = "max"
-            else:
-                period = "5d"
                 
             df = yf.download(symbol, period=period, interval=yf_interval, progress=False)
             if df.empty:
