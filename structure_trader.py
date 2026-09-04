@@ -140,11 +140,17 @@ def get_htf_bias(df_4h):
     last_l1 = pl[-2]['price']
     last_l2 = pl[-1]['price']
     
+    current_close = df_4h.iloc[-1]['close']
+    
     # Bullish: Higher Highs and Higher Lows
     if last_h2 > last_h1 and last_l2 > last_l1:
+        if current_close < last_l2:
+            return "⚪ Neutral"
         return "🟢 Bullish"
     # Bearish: Lower Highs and Lower Lows
     elif last_h2 < last_h1 and last_l2 < last_l1:
+        if current_close > last_h2:
+            return "⚪ Neutral"
         return "🔴 Bearish"
     else:
         # E.g., Lower High but Higher Low (Consolidation/Triangle)
@@ -168,41 +174,47 @@ def check_ltf_setup(df_5m, bias):
     recent_candles_index = max(pl[-1]['index'], ph[-1]['index']) + 1
     recent_candles = df_5m.iloc[recent_candles_index:]
     
+    sweep_price = None
+    internal_high = None
+    internal_low = None
     sweep = False
     bos = False
     
     if "Bullish" in bias:
-        # Bullish Setup:
-        # 1. Sweep: Price wicks below last_swing_low, but closes above it.
-        # 2. BoS: Price closes above last_swing_high.
+        # Bullish Setup: Sweep last swing low, then micro-BoS above sweep candle high
         for _, candle in recent_candles.iterrows():
-            if candle['low'] < last_swing_low and candle['close'] > last_swing_low:
+            if candle['low'] < last_swing_low:
                 sweep = True
+                if not sweep_price or candle['low'] < sweep_price:
+                    sweep_price = candle['low']
+                    internal_high = candle['high']
             
-            # If a sweep happened, check for a subsequent close above the swing high
-            if candle['close'] > last_swing_high:
+            # Micro-BoS
+            if sweep_price and candle['close'] > internal_high:
                 bos = True
                 
         if sweep and bos:
             return "🔥 LONG Confirmed", True, True
         elif sweep:
-            return "👀 Sweep Detected (Wait for BoS)", True, False
+            return "👀 Sweep Detected (Wait for micro-BoS)", True, False
             
     elif "Bearish" in bias:
-        # Bearish Setup:
-        # 1. Sweep: Price wicks above last_swing_high, but closes below it.
-        # 2. BoS: Price closes below last_swing_low.
+        # Bearish Setup: Sweep last swing high, then micro-BoS below sweep candle low
         for _, candle in recent_candles.iterrows():
-            if candle['high'] > last_swing_high and candle['close'] < last_swing_high:
+            if candle['high'] > last_swing_high:
                 sweep = True
+                if not sweep_price or candle['high'] > sweep_price:
+                    sweep_price = candle['high']
+                    internal_low = candle['low']
                 
-            if candle['close'] < last_swing_low:
+            # Micro-BoS
+            if sweep_price and candle['close'] < internal_low:
                 bos = True
                 
         if sweep and bos:
             return "🩸 SHORT Confirmed", True, True
         elif sweep:
-            return "👀 Sweep Detected (Wait for BoS)", True, False
+            return "👀 Sweep Detected (Wait for micro-BoS)", True, False
             
     return "Waiting...", False, False
 

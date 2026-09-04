@@ -157,8 +157,18 @@ def get_htf_bias(df_4h):
     last_h1, last_h2 = ph[-2]['price'], ph[-1]['price']
     last_l1, last_l2 = pl[-2]['price'], pl[-1]['price']
     
-    if last_h2 > last_h1 and last_l2 > last_l1: return "Bullish"
-    if last_h2 < last_h1 and last_l2 < last_l1: return "Bearish"
+    current_close = df_4h.iloc[-1]['close']
+    
+    if last_h2 > last_h1 and last_l2 > last_l1:
+        if current_close < last_l2:
+            return "Neutral" # Real-time invalidation (ChoCh)
+        return "Bullish"
+        
+    if last_h2 < last_h1 and last_l2 < last_l1:
+        if current_close > last_h2:
+            return "Neutral" # Real-time invalidation (ChoCh)
+        return "Bearish"
+        
     return "Neutral"
 
 def check_ltf_setup(df_5m, bias, risk_modifier="NORMAL", sentiment=None):
@@ -192,56 +202,54 @@ def check_ltf_setup(df_5m, bias, risk_modifier="NORMAL", sentiment=None):
     recent_candles = df_5m.iloc[recent_candles_index:]
     
     sweep_price = None
+    internal_high = None
+    internal_low = None
     ls_ratio = sentiment['ratio'] if sentiment else 1.0
     
     if bias == "Bullish":
-        # 1. Fading the Crowd (Reject Longs if retail is excessively Long)
-        if ls_ratio > 2.0:
-            return None
+        if ls_ratio > 2.0: return None
             
         for _, candle in recent_candles.iterrows():
-            if candle['low'] < last_swing_low and candle['close'] > last_swing_low:
-                sweep_price = candle['low'] # This is the absolute bottom of the sweep
+            if candle['low'] < last_swing_low:
+                if not sweep_price or candle['low'] < sweep_price:
+                    sweep_price = candle['low']
+                    internal_high = candle['high'] # Track high of the sweep candle
             
-            if sweep_price and candle['close'] > last_swing_high:
+            # Micro-BoS: Close above the sweep candle's high
+            if sweep_price and candle['close'] > internal_high:
                 entry = candle['close']
-                
-                # 4. Whipsaw Protection (Dynamic SL)
                 sl = sweep_price * (1.0 - whipsaw_pct) if risk_modifier == "REDUCED" else sweep_price
-                
                 risk = entry - sl
-                if risk <= 0: return None
                 
-                # 3. A+ Setup Detection (Dynamic TP)
+                if risk <= 0 or (risk / entry) > 0.015: # Max 1.5% risk cap
+                    return None
+                
                 rr_multiplier = base_rr + 1 if ls_ratio < 0.5 else base_rr
                 tp = entry + (risk * rr_multiplier)
-                
                 direction_str = "LONG ⭐ A+ SETUP ⭐" if rr_multiplier == 3 else "LONG"
                 
                 return {"direction": direction_str, "entry": entry, "sl": sl, "tp": tp, "time": str(candle['time'])}
                 
     elif bias == "Bearish":
-        # 1. Fading the Crowd (Reject Shorts if retail is excessively Short)
-        if ls_ratio < 0.5:
-            return None
+        if ls_ratio < 0.5: return None
             
         for _, candle in recent_candles.iterrows():
-            if candle['high'] > last_swing_high and candle['close'] < last_swing_high:
-                sweep_price = candle['high'] # This is the absolute top of the sweep
+            if candle['high'] > last_swing_high:
+                if not sweep_price or candle['high'] > sweep_price:
+                    sweep_price = candle['high']
+                    internal_low = candle['low'] # Track low of the sweep candle
                 
-            if sweep_price and candle['close'] < last_swing_low:
+            # Micro-BoS: Close below the sweep candle's low
+            if sweep_price and candle['close'] < internal_low:
                 entry = candle['close']
-                
-                # 4. Whipsaw Protection (Dynamic SL)
                 sl = sweep_price * (1.0 + whipsaw_pct) if risk_modifier == "REDUCED" else sweep_price
-                
                 risk = sl - entry
-                if risk <= 0: return None
                 
-                # 3. A+ Setup Detection (Dynamic TP)
+                if risk <= 0 or (risk / entry) > 0.015: # Max 1.5% risk cap
+                    return None
+                
                 rr_multiplier = base_rr + 1 if ls_ratio > 2.0 else base_rr
                 tp = entry - (risk * rr_multiplier)
-                
                 direction_str = "SHORT ⭐ A+ SETUP ⭐" if rr_multiplier == 3 else "SHORT"
                 
                 return {"direction": direction_str, "entry": entry, "sl": sl, "tp": tp, "time": str(candle['time'])}
