@@ -58,6 +58,7 @@ def generate_catalyst_report():
     1. DO NOT issue a new trade for a catalyst/asset if we already have an active trade for it!
     2. DO NOT flip-flop your bias (e.g. going LONG today when you went SHORT yesterday on the same event).
     3. If new news contradicts your previous thesis on an active trade, write an update in the "**Updates on Active Trades**" section suggesting we close the old position, rather than issuing a conflicting new trade.
+    4. DO NOT generate trade setups for Forex pairs (e.g. EURUSD). You may use Forex/Macro data to establish your bias, but ONLY generate trades for Crypto and Commodities (Gold).
     
     Look specifically for:
     - Major Central Bank Rate Decisions or Fed policy shifts (for Forex/Gold)

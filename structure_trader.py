@@ -8,7 +8,7 @@ import time
 
 # --- Config & Setup ---
 BASE_URL = "https://api.kucoin.com"
-TARGET_SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "EURUSD=X", "GBPUSD=X", "GC=F"]
+TARGET_SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "GC=F"]
 
 st.set_page_config(layout="wide", page_title="SMC Crypto Screener")
 

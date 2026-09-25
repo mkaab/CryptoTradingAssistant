@@ -62,8 +62,6 @@ def evaluate_predictions():
         yf_ticker = ticker.upper().strip()
         if yf_ticker in ["XAU/USD", "XAUUSD"]:
             yf_ticker = "GC=F"
-        elif yf_ticker == "EUR/USD":
-            yf_ticker = "EURUSD=X"
         elif yf_ticker.endswith("-USDT"):
             yf_ticker = yf_ticker.replace("-USDT", "-USD")
             

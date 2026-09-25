@@ -86,7 +86,7 @@ def fetch_candles(symbol, timeframe):
             df = df.sort_values('time').reset_index(drop=True)
             return df
     else:
-        # Use TwelveData for Forex/Gold
+        # Use TwelveData for Commodities/Macro
         if not TWELVEDATA_API_KEY:
             print(f"Skipping {symbol} - No TWELVEDATA_API_KEY found.")
             return pd.DataFrame()
@@ -113,7 +113,7 @@ def fetch_candles(symbol, timeframe):
             
             # TwelveData returns newest first, so we reverse it
             df = df.sort_values('time').reset_index(drop=True)
-            df['volume'] = 0.0 # TwelveData free forex doesn't give volume reliably, so mock it
+            df['volume'] = 0.0 # TwelveData free tier doesn't give volume reliably for some macro, so mock it
             
             return df[['time', 'open', 'close', 'high', 'low', 'volume']]
         else:
